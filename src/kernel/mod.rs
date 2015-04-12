@@ -50,9 +50,11 @@ pub mod ports {
 	extern {
 		pub fn create_port(capacity: int32_t, name: *const c_char) -> port_id;
 		pub fn find_port(name: *const c_char) -> port_id;
-		// read_port
+		pub fn read_port(port: port_id, code: *mut int32_t, buffer: *mut u8,
+											bufferSize: size_t) -> ssize_t;
 		// read_port_etc
-		// write_port
+		pub fn write_port(port: port_id, code: int32_t, buffer: *const u8,
+											bufferSize: size_t) -> status_t;
 		pub fn write_port_etc(port: port_id, code: int32_t, buffer: *const u8,
 											bufferSize: size_t, flags: uint32_t,
 											timeout: bigtime_t) -> status_t;
@@ -76,16 +78,48 @@ pub mod ports {
 #[test]
 fn test_basic_port() {
 	use std::ffi::CString;
-	use kernel::ports::{port_info, get_port_info};
+	use kernel::errors::{B_OK, B_INTERRUPTED};
+	use kernel::types::{int32_t, size_t, ssize_t};
+	use kernel::ports::*;
 	use std::mem;
 	use std::str;
 	
-	let port_name = CString::new("test portname").unwrap();
+	let port_name = CString::new("test_basic_port").unwrap();
 	let port;
 	port = unsafe {ports::create_port(16, port_name.as_ptr())};
+	assert!(port > 0);
 	let mut portInfo: port_info = unsafe { mem::zeroed() };
-	let status = get_port_info(port, &mut portInfo);
-	println!("{}, {}, {}", port, status, portInfo.capacity);
+	let mut status = get_port_info(port, &mut portInfo);
+	assert!(status == B_OK);
+	assert!(portInfo.port == port);
+	assert!(portInfo.capacity == 16);
+	
+	let port_data = b"testdata for port\n";
+	let port_code: int32_t = 47483658;
+	status = unsafe { write_port(port, port_code, port_data.as_ptr(), port_data.len() as u32) };
+	
+	// wait for the data to be readable
+	let mut size: ssize_t = B_INTERRUPTED;
+	while size == B_INTERRUPTED {
+		size = unsafe { port_buffer_size(port) };
+	}
+	assert!(size == port_data.len() as i32);
+	
+	// read the data
+	let mut incoming_data = Vec::with_capacity(size as usize);
+	let mut incoming_code: int32_t = 0;
+	
+	let read_size = unsafe { read_port(port, &mut incoming_code, incoming_data.as_mut_ptr(), size as size_t) };
+	assert!(read_size == size);
+	assert!(incoming_code == port_code);
+	
+	// close the port
+	status = unsafe { close_port(port) };
+	assert!(status == B_OK);
+	
+	// delete the port
+	status = unsafe { delete_port(port) };
+	assert!(status == B_OK);	
 }
 
 #[test]
