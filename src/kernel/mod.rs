@@ -1,5 +1,7 @@
 #![allow(non_camel_case_types)]
 
+pub mod fs_attr;
+
 pub mod consts {
 	pub const B_OS_NAME_LENGTH : usize = 32;
 }
@@ -11,6 +13,8 @@ pub mod types {
 	pub type uint32_t = u32;
 	pub type int64_t = i64;
 	pub type c_char = i8;
+	pub type c_int = i32;
+	pub type off_t = i64;
 	pub type size_t = u32;
 	pub type ssize_t = i32;
 	
