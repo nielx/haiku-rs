@@ -36,6 +36,14 @@ pub mod errors {
 	pub const B_INTERRUPTED: status_t = 2147483658;
 }
 
+pub mod type_constants {
+	use kernel::types::uint32_t;
+	
+	// not an exhaustive list!
+	pub const B_MIME_STRING_TYPE: uint32_t = 1296649555;
+	pub const B_STRING_TYPE: uint32_t = 1129534546;
+}
+
 pub mod ports {
 	use kernel::consts::B_OS_NAME_LENGTH;
 	use kernel::types::{c_char, int32_t, uint32_t, size_t, ssize_t, port_id, team_id, status_t, bigtime_t};

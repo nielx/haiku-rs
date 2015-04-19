@@ -2,3 +2,4 @@
 #![crate_type = "dylib"]
 
 pub mod kernel;
+pub mod storage;
