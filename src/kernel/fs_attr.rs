@@ -1,5 +1,5 @@
 
-use kernel::types::{c_char, c_int, off_t, uint32_t};
+use kernel::types::{c_char, c_int, off_t, uint32_t, size_t, ssize_t};
 
 // Copied from libc, which is not available in the beta channel
 pub enum DIR {}
@@ -12,21 +12,25 @@ pub enum dirent_t {}
 }
 
 extern {
-	// fs_read_attr
-	// fs_write_attr
-	// fs_remove_attr
+	pub fn fs_read_attr(fd: c_int, attribute: *const c_char, typeCode: uint32_t,
+						pos: off_t, buffer: *mut u8, readBytes: size_t) -> ssize_t;
+	pub fn fs_write_attr(fd: c_int, attribute: *const c_char, typeCode: uint32_t,
+						pos: off_t, buffer: *const u8, readBytes: size_t) -> ssize_t;
+	pub fn fs_remove_attr(fd: c_int, attribute: *const c_char) -> c_int;
 	pub fn fs_stat_attr(fd: c_int, attribute: *const c_char, attrInfo: *mut attr_info) -> c_int;
 	
-	// fs_open_attr
-	// fs_fopen_attr
-	// fs_close_attr
+	pub fn fs_open_attr(path: *const c_char, attribute: *const c_char,
+						typeCode: uint32_t, openMode: c_int) -> c_int;
+	pub fn fs_fopen_attr(fd: c_int, attribute: *const c_char, typeCode: uint32_t, 
+						openMode: c_int) -> c_int;
+	pub fn fs_close_attr(fd: c_int) -> c_int;
 	
 	pub fn fs_open_attr_dir(path: *const c_char) -> *mut DIR;
-	// fs_lopen_attr_dir
+	pub fn fs_lopen_attr_dir(path: *const c_char) -> *mut DIR;
 	pub fn fs_fopen_attr_dir(fd: c_int) -> *mut DIR;
 	pub fn fs_close_attr_dir(dir: *mut DIR) -> c_int;
 	pub fn fs_read_attr_dir(dir: *mut DIR) -> *mut dirent_t;
-	// fs_rewind_attr_dir
+	pub fn fs_rewind_attr_dir(dir: *mut DIR);
 }
 
 pub unsafe fn fs_get_attr_name(dirent: *mut dirent_t) -> *const c_char {
