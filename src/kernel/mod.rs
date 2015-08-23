@@ -87,6 +87,17 @@ pub mod ports {
 	}
 }
 
+pub fn debugger(message: &str) {
+	use kernel::types::c_char;
+	use std::ffi::CString;
+	extern {
+		fn debugger(message: *const c_char);
+	}
+	let msg = CString::new(message).unwrap();
+	unsafe { debugger(msg.as_ptr()) };
+}
+	
+
 #[test]
 fn test_basic_port() {
 	use std::ffi::CString;
