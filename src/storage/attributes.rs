@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io;
 use std::mem;
 use std::os::unix::io::{AsRawFd, RawFd};
+use std::path::Path;
 
 use kernel::fs_attr::*;
 use kernel::type_constants::*;
@@ -31,9 +32,15 @@ pub struct AttributeDescriptor {
 	pub raw_attribute_type: u32,
 }
 
-pub struct AttributeIterator {
+enum file_descriptor {
+	owned(File),
+	borrowed(c_int)
+}
+
+
+pub struct AttributeIterator {	
 	dir: *mut DIR,
-	fd: c_int,
+	file: file_descriptor,
 }
 
 impl Drop for AttributeIterator {
@@ -58,11 +65,15 @@ impl Iterator for AttributeIterator {
 				Some(Err(error))
 			}
 		} else {
+			let fd = match self.file {
+				file_descriptor::owned(ref f) => f.as_raw_fd(),
+				file_descriptor::borrowed(ref f) => *f
+			};
 			let attr_name = unsafe {CStr::from_ptr(fs_get_attr_name(ent))};
 			let buf: &[u8] = attr_name.to_bytes();
 			let str_buf: String = String::from_utf8(buf.to_vec()).unwrap();
 			let mut attr_info_data = unsafe { mem::zeroed() };
-			let stat_result = unsafe {fs_stat_attr(self.fd, attr_name.as_ptr(), &mut attr_info_data)};
+			let stat_result = unsafe {fs_stat_attr(fd, attr_name.as_ptr(), &mut attr_info_data)};
 			if stat_result as i32 == -1 {
 				return Some(Err(io::Error::last_os_error()));
 			}
@@ -76,56 +87,10 @@ pub trait AttributeExt {
 	fn iter_attributes(&self) -> io::Result<AttributeIterator>;
 	fn find_attribute(&self, name: &str) -> io::Result<AttributeDescriptor>;
 	fn read_attribute_raw(&self, name: &str, raw_type: u32, pos: off_t) -> io::Result<Vec<u8>>;
-	fn read_attribute(&self, attribute: &AttributeDescriptor) -> io::Result<AttributeContents>; 
 	fn write_attribute_raw(&self, name: &str, raw_type: u32, pos: off_t, buffer: &[u8]) -> io::Result<()>;
-	fn write_attribute(&self, name: &str, value: &AttributeContents) -> io::Result<()>;
 	fn remove_attribute(&self, name: &str) -> io::Result<()>;
-}
-
-impl AttributeExt for File {
-	fn iter_attributes(&self) -> io::Result<AttributeIterator> {
-		let fd = self.as_raw_fd();
-		let d = unsafe { fs_fopen_attr_dir(fd) };
-		
-		if (d as u32) == 0 {
-			return Err(io::Error::last_os_error());
-		} else {
-			Ok(AttributeIterator{dir: d, fd: fd})
-		}
-	}
 	
-	fn find_attribute(&self, name: &str) -> io::Result<AttributeDescriptor> {
-		let fd = self.as_raw_fd();
-		let mut attr_info_data = unsafe { mem::zeroed() };
-		let attr_name = CString::new(name).unwrap();
-		let stat_result = unsafe {fs_stat_attr(fd, attr_name.as_ptr(), &mut attr_info_data)};
-		if stat_result as i32 == -1 {
-			return Err(io::Error::last_os_error());
-		}
-		Ok(AttributeDescriptor{name: name.to_string(), size: attr_info_data.size, raw_attribute_type: attr_info_data.attr_type})
-	}
-	
-	fn read_attribute_raw(&self, name: &str, raw_type: u32, pos: off_t) -> io::Result<Vec<u8>>{
-		let fd = self.as_raw_fd();
-
-		// Get attribute stat
-		let descriptor = try!(self.find_attribute(name));
-		
-		// Read the data
-		let attr_name = CString::new(descriptor.name).unwrap();
-		let mut dst = Vec::with_capacity(descriptor.size as usize);
-		let read_size = unsafe { fs_read_attr(fd, attr_name.as_ptr(), descriptor.raw_attribute_type,
-												0, dst.as_mut_ptr(), descriptor.size as u32) };
-		
-		if read_size == -1 {
-			return Err(io::Error::last_os_error());
-		} else if read_size != descriptor.size as ssize_t {
-			return Err(io::Error::new(io::ErrorKind::InvalidData, "size mismatch between attribute size and read size"));
-		}
-		unsafe { dst.set_len(read_size as usize) };
-		Ok(dst)
-	}
-	
+	// Higher-level functions
 	fn read_attribute(&self, attribute: &AttributeDescriptor) -> io::Result<AttributeContents> {
 		let value = self.read_attribute_raw(&attribute.name, attribute.raw_attribute_type, 0);
 		if value.is_err() {
@@ -222,19 +187,6 @@ impl AttributeExt for File {
 		}
 	}
 
-	fn write_attribute_raw(&self, name: &str, raw_type: u32, pos: off_t, buffer: &[u8]) -> io::Result<()> {
-		let fd = self.as_raw_fd();
-		
-		// Write the data
-		let attr_name = CString::new(name).unwrap();
-		let write_size = unsafe { fs_write_attr(fd, attr_name.as_ptr(), raw_type, pos, buffer.as_ptr(), buffer.len() as u32) };
-		
-		if write_size < 0 || write_size as usize != buffer.len() {
-			return Err(io::Error::last_os_error());
-		}
-		Ok(())
-	}
-	
 	fn write_attribute(&self, name: &str, value: &AttributeContents) -> io::Result<()> {
 		match *value {
 			AttributeContents::Int8(x) => {
@@ -293,8 +245,65 @@ impl AttributeExt for File {
 		}
 		Ok(())
 	}
+}
 
+impl AttributeExt for File {
+	fn iter_attributes(&self) -> io::Result<AttributeIterator> {
+		let fd = self.as_raw_fd();
+		let d = unsafe { fs_fopen_attr_dir(fd) };
+		
+		if (d as u32) == 0 {
+			return Err(io::Error::last_os_error());
+		} else {
+			Ok(AttributeIterator{dir: d, file: file_descriptor::borrowed(fd)})
+		}
+	}
+	
+	fn find_attribute(&self, name: &str) -> io::Result<AttributeDescriptor> {
+		let fd = self.as_raw_fd();
+		let mut attr_info_data = unsafe { mem::zeroed() };
+		let attr_name = CString::new(name).unwrap();
+		let stat_result = unsafe {fs_stat_attr(fd, attr_name.as_ptr(), &mut attr_info_data)};
+		if stat_result as i32 == -1 {
+			return Err(io::Error::last_os_error());
+		}
+		Ok(AttributeDescriptor{name: name.to_string(), size: attr_info_data.size, raw_attribute_type: attr_info_data.attr_type})
+	}
+	
+	fn read_attribute_raw(&self, name: &str, raw_type: u32, pos: off_t) -> io::Result<Vec<u8>>{
+		let fd = self.as_raw_fd();
 
+		// Get attribute stat
+		let descriptor = try!(self.find_attribute(name));
+		
+		// Read the data
+		let attr_name = CString::new(descriptor.name).unwrap();
+		let mut dst = Vec::with_capacity(descriptor.size as usize);
+		let read_size = unsafe { fs_read_attr(fd, attr_name.as_ptr(), descriptor.raw_attribute_type,
+												0, dst.as_mut_ptr(), descriptor.size as u32) };
+		
+		if read_size == -1 {
+			return Err(io::Error::last_os_error());
+		} else if read_size != descriptor.size as ssize_t {
+			return Err(io::Error::new(io::ErrorKind::InvalidData, "size mismatch between attribute size and read size"));
+		}
+		unsafe { dst.set_len(read_size as usize) };
+		Ok(dst)
+	}
+	
+	fn write_attribute_raw(&self, name: &str, raw_type: u32, pos: off_t, buffer: &[u8]) -> io::Result<()> {
+		let fd = self.as_raw_fd();
+		
+		// Write the data
+		let attr_name = CString::new(name).unwrap();
+		let write_size = unsafe { fs_write_attr(fd, attr_name.as_ptr(), raw_type, pos, buffer.as_ptr(), buffer.len() as u32) };
+		
+		if write_size < 0 || write_size as usize != buffer.len() {
+			return Err(io::Error::last_os_error());
+		}
+		Ok(())
+	}
+	
 	fn remove_attribute(&self, name: &str) -> io::Result<()> {
 		let fd = self.as_raw_fd();
 		let attr_name = CString::new(name).unwrap();
@@ -304,6 +313,43 @@ impl AttributeExt for File {
 		} else {
 			Err(io::Error::last_os_error())
 		}
+	}
+}
+
+impl AttributeExt for Path {
+	fn iter_attributes(&self) -> io::Result<AttributeIterator> {
+		let file = try!(File::open(self));
+		let d = unsafe { fs_fopen_attr_dir(file.as_raw_fd()) };
+		
+		if (d as u32) == 0 {
+			return Err(io::Error::last_os_error());
+		} else {
+			Ok(AttributeIterator{dir: d, file: file_descriptor::owned(file)})
+		}
+	}
+	
+	fn find_attribute(&self, name: &str) -> io::Result<AttributeDescriptor> {
+		let file = try!(File::open(self));
+		file.find_attribute(name)
+	}
+	
+	fn read_attribute_raw(&self, name: &str, raw_type: u32, pos: off_t) -> io::Result<Vec<u8>> {
+		let file = try!(File::open(self));
+		file.read_attribute_raw(name, raw_type, pos)
+	}
+	
+	fn write_attribute_raw(&self, name: &str, raw_type: u32, pos: off_t, buffer: &[u8]) -> io::Result<()> {
+		use std::fs::OpenOptions;
+		
+		let file = try!(OpenOptions::new().write(true).open(self));
+		file.write_attribute_raw(name, raw_type, pos, buffer)
+	}
+	
+	fn remove_attribute(&self, name: &str) -> io::Result<()> {
+		use std::fs::OpenOptions;
+		
+		let file = try!(OpenOptions::new().write(true).open(self));
+		file.remove_attribute(name)
 	}
 }
 
