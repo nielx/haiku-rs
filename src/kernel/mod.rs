@@ -42,6 +42,17 @@ pub mod type_constants {
 	// not an exhaustive list!
 	pub const B_MIME_STRING_TYPE: uint32_t = 1296649555;
 	pub const B_STRING_TYPE: uint32_t = 1129534546;
+	pub const B_BOOL_TYPE: uint32_t = 1112493900;
+	pub const B_DOUBLE_TYPE: uint32_t = 1145195589;
+	pub const B_FLOAT_TYPE: uint32_t = 1179406164;
+	pub const B_INT8_TYPE: uint32_t = 1113150533;
+	pub const B_INT16_TYPE: uint32_t = 1397248596;
+	pub const B_INT32_TYPE: uint32_t = 1280265799;
+	pub const B_INT64_TYPE: uint32_t = 1280069191;
+	pub const B_UINT8_TYPE: uint32_t = 1430411604;
+	pub const B_UINT16_TYPE: uint32_t = 1431521364;
+	pub const B_UINT32_TYPE: uint32_t = 1431064135;
+	pub const B_UINT64_TYPE: uint32_t = 1431063623;
 }
 
 pub mod ports {
