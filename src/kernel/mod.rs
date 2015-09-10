@@ -1,3 +1,8 @@
+//
+// Copyright 2015, Niels Sascha Reedijk <niels.reedijk@gmail.com>
+// All rights reserved. Distributed under the terms of the MIT License.
+//
+
 #![allow(non_camel_case_types)]
 
 pub mod fs_attr;

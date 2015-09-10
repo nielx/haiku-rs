@@ -1,3 +1,8 @@
+//
+// Copyright 2015, Niels Sascha Reedijk <niels.reedijk@gmail.com>
+// All rights reserved. Distributed under the terms of the MIT License.
+//
+
 use std::ffi::{CStr, CString};
 use std::fs::File;
 use std::io;
@@ -55,15 +60,12 @@ impl Iterator for AttributeIterator {
 	fn next(&mut self) -> Option<io::Result<AttributeDescriptor>> {
 		let mut ent = unsafe { fs_read_attr_dir(self.dir) };
 		if ent as u32 == 0 {
-			// TODO: figure out how to get the error
-			let error = io::Error::last_os_error();
-			if error.kind() == io::ErrorKind::NotFound {
-				println!("Errorkind::NotFound");
-				None
-			} else {
-				println!("Real error: {}", error.raw_os_error().unwrap());
-				Some(Err(error))
-			}
+			// Note: in the BeBook it says that an error will be set, even
+			// if we reach the end of the directory. This is not true; if we
+			// reach the end of the attributes, there will not be an error.
+			// So there is no way to verify whether we really reached the end,
+			// or whether something else went wrong in the mean time.
+			None
 		} else {
 			let fd = match self.file {
 				file_descriptor::owned(ref f) => f.as_raw_fd(),

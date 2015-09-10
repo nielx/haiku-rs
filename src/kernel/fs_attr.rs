@@ -1,7 +1,11 @@
+//
+// Copyright 2015, Niels Sascha Reedijk <niels.reedijk@gmail.com>
+// All rights reserved. Distributed under the terms of the MIT License.
+//
 
 use kernel::types::{c_char, c_int, off_t, uint32_t, size_t, ssize_t};
 
-// Copied from libc, which is not available in the beta channel
+// Copied from libc, which is only available in the beta channel
 pub enum DIR {}
 pub enum dirent_t {}
 
