@@ -60,6 +60,19 @@ pub mod type_constants {
 	pub const B_UINT64_TYPE: uint32_t = 1431063623;
 }
 
+pub mod file_open_mode_constants {
+	use kernel::types::c_int;
+	
+	pub const B_READ_ONLY: c_int = 0x0000;
+	pub const B_WRITE_ONLY: c_int = 0x0001;
+	pub const B_READ_WRITE: c_int = 0x0002;
+	
+	pub const B_FAIL_IF_EXISTS: c_int = 0x0100;
+	pub const B_CREATE_FILE: c_int = 0x0200;
+	pub const B_ERASE_FILE: c_int = 0x0400;
+	pub const B_OPEN_AT_END: c_int = 0x0800;
+}
+
 pub mod ports {
 	use kernel::consts::B_OS_NAME_LENGTH;
 	use kernel::types::{c_char, int32_t, uint32_t, size_t, ssize_t, port_id, team_id, status_t, bigtime_t};
