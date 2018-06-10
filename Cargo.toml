@@ -1,0 +1,7 @@
+[package]
+name = "haiku"
+version = "0.1.0"
+authors = ["Niels Sascha Reedijk <niels.reedijk@gmail.com>"]
+
+[dependencies]
+haiku-sys = { path = "haiku-sys", version = "0.1.0" }

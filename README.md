@@ -7,9 +7,7 @@ level API is implemented which uses more advanced rust language constructs.
 
 ## Building
 
-Since `cargo` is not available for Haiku yet, building is done using `rustc`
-directly. All of this is automated in the `build.sh` script. Invoke it to
-generate the library, the test app, and the samples in the `objects` directory.
+Using `cargo build` should do the trick!
 
 ## Using the library
 

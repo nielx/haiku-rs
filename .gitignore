@@ -1,2 +1,5 @@
 doc/
 objects/
+/target/
+**/*.rs.bk
+Cargo.lock
