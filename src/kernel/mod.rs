@@ -12,26 +12,15 @@ pub mod consts {
 }
 
 pub mod types {
-	
-	// Copied from libc (not available in the beta channel)
-	pub type int32_t = i32;
-	pub type uint32_t = u32;
-	pub type int64_t = i64;
-	pub type c_char = i8;
-	pub type c_int = i32;
-	pub type off_t = i64;
-	pub type size_t = u32;
-	pub type ssize_t = i32;
-	
 	// Haiku default
-	pub type area_id = int32_t;
-	pub type port_id = int32_t;
-	pub type sem_id = int32_t;
-	pub type team_id = int32_t;
-	pub type thread_id = int32_t;
+	pub type area_id = i32;
+	pub type port_id = i32;
+	pub type sem_id = i32;
+	pub type team_id = i32;
+	pub type thread_id = i32;
 	
-	pub type status_t = int32_t;
-	pub type bigtime_t = int64_t;
+	pub type status_t = i32;
+	pub type bigtime_t = i64;
 }
 
 pub mod errors {
@@ -41,27 +30,25 @@ pub mod errors {
 	pub const B_INTERRUPTED: status_t = 2147483658;
 }
 
-pub mod type_constants {
-	use kernel::types::uint32_t;
-	
+pub mod type_constants {	
 	// not an exhaustive list!
-	pub const B_MIME_STRING_TYPE: uint32_t = 1296649555;
-	pub const B_STRING_TYPE: uint32_t = 1129534546;
-	pub const B_BOOL_TYPE: uint32_t = 1112493900;
-	pub const B_DOUBLE_TYPE: uint32_t = 1145195589;
-	pub const B_FLOAT_TYPE: uint32_t = 1179406164;
-	pub const B_INT8_TYPE: uint32_t = 1113150533;
-	pub const B_INT16_TYPE: uint32_t = 1397248596;
-	pub const B_INT32_TYPE: uint32_t = 1280265799;
-	pub const B_INT64_TYPE: uint32_t = 1280069191;
-	pub const B_UINT8_TYPE: uint32_t = 1430411604;
-	pub const B_UINT16_TYPE: uint32_t = 1431521364;
-	pub const B_UINT32_TYPE: uint32_t = 1431064135;
-	pub const B_UINT64_TYPE: uint32_t = 1431063623;
+	pub const B_MIME_STRING_TYPE: u32 = 1296649555;
+	pub const B_STRING_TYPE: u32 = 1129534546;
+	pub const B_BOOL_TYPE: u32 = 1112493900;
+	pub const B_DOUBLE_TYPE: u32 = 1145195589;
+	pub const B_FLOAT_TYPE: u32 = 1179406164;
+	pub const B_INT8_TYPE: u32 = 1113150533;
+	pub const B_INT16_TYPE: u32 = 1397248596;
+	pub const B_INT32_TYPE: u32 = 1280265799;
+	pub const B_INT64_TYPE: u32 = 1280069191;
+	pub const B_UINT8_TYPE: u32 = 1430411604;
+	pub const B_UINT16_TYPE: u32 = 1431521364;
+	pub const B_UINT32_TYPE: u32 = 1431064135;
+	pub const B_UINT64_TYPE: u32 = 1431063623;
 }
 
 pub mod file_open_mode_constants {
-	use kernel::types::c_int;
+	use libc::c_int;
 	
 	pub const B_READ_ONLY: c_int = 0x0000;
 	pub const B_WRITE_ONLY: c_int = 0x0001;
@@ -75,7 +62,8 @@ pub mod file_open_mode_constants {
 
 pub mod ports {
 	use kernel::consts::B_OS_NAME_LENGTH;
-	use kernel::types::{c_char, int32_t, uint32_t, size_t, ssize_t, port_id, team_id, status_t, bigtime_t};
+	use libc::{c_char, size_t, ssize_t};
+	use kernel::types::{port_id, team_id, status_t, bigtime_t};
 	use std::mem;
 	
 	#[repr(C)]
@@ -83,21 +71,21 @@ pub mod ports {
 		pub port: port_id,
 		pub team: team_id,
 		pub name: [c_char; B_OS_NAME_LENGTH],
-		pub capacity: int32_t,
-		pub queue_count: int32_t,
-		pub total_count: int32_t,
+		pub capacity: i32,
+		pub queue_count: i32,
+		pub total_count: i32,
 	}
 
 	extern {
-		pub fn create_port(capacity: int32_t, name: *const c_char) -> port_id;
+		pub fn create_port(capacity: i32, name: *const c_char) -> port_id;
 		pub fn find_port(name: *const c_char) -> port_id;
-		pub fn read_port(port: port_id, code: *mut int32_t, buffer: *mut u8,
+		pub fn read_port(port: port_id, code: *mut i32, buffer: *mut u8,
 											bufferSize: size_t) -> ssize_t;
 		// read_port_etc
-		pub fn write_port(port: port_id, code: int32_t, buffer: *const u8,
+		pub fn write_port(port: port_id, code: i32, buffer: *const u8,
 											bufferSize: size_t) -> status_t;
-		pub fn write_port_etc(port: port_id, code: int32_t, buffer: *const u8,
-											bufferSize: size_t, flags: uint32_t,
+		pub fn write_port_etc(port: port_id, code: i32, buffer: *const u8,
+											bufferSize: size_t, flags: u32,
 											timeout: bigtime_t) -> status_t;
 		pub fn close_port(port: port_id) -> status_t;
 		pub fn delete_port(port: port_id) -> status_t;
@@ -112,12 +100,12 @@ pub mod ports {
 	}
 	
 	pub fn get_port_info(port: port_id, buf: &mut port_info) -> status_t {
-		unsafe { _get_port_info(port, buf, mem::size_of::<port_info>() as u32) }
+		unsafe { _get_port_info(port, buf, mem::size_of::<port_info>() as size_t) }
 	}
 }
 
 pub fn debugger(message: &str) {
-	use kernel::types::c_char;
+	use libc::c_char;
 	use std::ffi::CString;
 	extern {
 		fn debugger(message: *const c_char);
@@ -131,7 +119,7 @@ pub fn debugger(message: &str) {
 fn test_basic_port() {
 	use std::ffi::CString;
 	use kernel::errors::{B_OK, B_INTERRUPTED};
-	use kernel::types::{int32_t, size_t, ssize_t};
+	use libc::{size_t, ssize_t};
 	use kernel::ports::*;
 	use std::mem;
 	use std::str;
@@ -147,7 +135,7 @@ fn test_basic_port() {
 	assert!(portInfo.capacity == 16);
 	
 	let port_data = b"testdata for port\n";
-	let port_code: int32_t = 47483658;
+	let port_code: i32 = 47483658;
 	status = unsafe { write_port(port, port_code, port_data.as_ptr(), port_data.len() as u32) };
 	
 	// wait for the data to be readable
@@ -159,7 +147,7 @@ fn test_basic_port() {
 	
 	// read the data
 	let mut incoming_data = Vec::with_capacity(size as usize);
-	let mut incoming_code: int32_t = 0;
+	let mut incoming_code: i32 = 0;
 	
 	let read_size = unsafe { read_port(port, &mut incoming_code, incoming_data.as_mut_ptr(), size as size_t) };
 	assert!(read_size == size);

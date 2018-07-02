@@ -10,9 +10,10 @@ use std::mem;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::path::Path;
 
-use kernel::fs_attr::*;
+use haiku_sys::*;
+use libc::{c_int, off_t, size_t, ssize_t, DIR};
+
 use kernel::type_constants::*;
-use kernel::types::{c_int, ssize_t, off_t};
 
 pub enum AttributeContents {
 	UInt8(u8),
@@ -71,11 +72,11 @@ impl Iterator for AttributeIterator {
 				file_descriptor::owned(ref f) => f.as_raw_fd(),
 				file_descriptor::borrowed(ref f) => *f
 			};
-			let attr_name = unsafe {CStr::from_ptr(fs_get_attr_name(ent))};
-			let buf: &[u8] = attr_name.to_bytes();
-			let str_buf: String = String::from_utf8(buf.to_vec()).unwrap();
+			let attr_name = unsafe {(*ent).d_name.as_ptr()};
+			let name_str = unsafe { CStr::from_ptr(attr_name) };
+			let str_buf: String = name_str.to_string_lossy().into_owned();
 			let mut attr_info_data = unsafe { mem::zeroed() };
-			let stat_result = unsafe {fs_stat_attr(fd, attr_name.as_ptr(), &mut attr_info_data)};
+			let stat_result = unsafe {fs_stat_attr(fd, attr_name, &mut attr_info_data)};
 			if stat_result as i32 == -1 {
 				return Some(Err(io::Error::last_os_error()));
 			}
@@ -282,7 +283,7 @@ impl AttributeExt for File {
 		let attr_name = CString::new(descriptor.name).unwrap();
 		let mut dst = Vec::with_capacity(descriptor.size as usize);
 		let read_size = unsafe { fs_read_attr(fd, attr_name.as_ptr(), descriptor.raw_attribute_type,
-												0, dst.as_mut_ptr(), descriptor.size as u32) };
+												0, dst.as_mut_ptr(), descriptor.size as size_t) };
 		
 		if read_size == -1 {
 			return Err(io::Error::last_os_error());
@@ -298,7 +299,7 @@ impl AttributeExt for File {
 		
 		// Write the data
 		let attr_name = CString::new(name).unwrap();
-		let write_size = unsafe { fs_write_attr(fd, attr_name.as_ptr(), raw_type, pos, buffer.as_ptr(), buffer.len() as u32) };
+		let write_size = unsafe { fs_write_attr(fd, attr_name.as_ptr(), raw_type, pos, buffer.as_ptr(), buffer.len() as size_t) };
 		
 		if write_size < 0 || write_size as usize != buffer.len() {
 			return Err(io::Error::last_os_error());

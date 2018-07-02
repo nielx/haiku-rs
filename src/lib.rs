@@ -7,5 +7,8 @@
 #![crate_type = "dylib"]
 #![crate_name = "haiku"]
 
+extern crate haiku_sys;
+extern crate libc;
+
 pub mod kernel;
 pub mod storage;
