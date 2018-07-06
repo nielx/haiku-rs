@@ -7,7 +7,7 @@ use std::ffi::{CStr, CString};
 use std::fs::File;
 use std::io;
 use std::mem;
-use std::os::unix::io::{AsRawFd, RawFd};
+use std::os::unix::io::AsRawFd;
 use std::path::Path;
 
 use haiku_sys::*;
@@ -38,15 +38,15 @@ pub struct AttributeDescriptor {
 	pub raw_attribute_type: u32,
 }
 
-enum file_descriptor {
-	owned(File),
-	borrowed(c_int)
+enum FileDescriptor {
+	Owned(File),
+	Borrowed(c_int)
 }
 
 
 pub struct AttributeIterator {	
 	dir: *mut DIR,
-	file: file_descriptor,
+	file: FileDescriptor,
 }
 
 impl Drop for AttributeIterator {
@@ -59,7 +59,7 @@ impl Iterator for AttributeIterator {
 	type Item = io::Result<AttributeDescriptor>;
 	
 	fn next(&mut self) -> Option<io::Result<AttributeDescriptor>> {
-		let mut ent = unsafe { fs_read_attr_dir(self.dir) };
+		let ent = unsafe { fs_read_attr_dir(self.dir) };
 		if ent as u32 == 0 {
 			// Note: in the BeBook it says that an error will be set, even
 			// if we reach the end of the directory. This is not true; if we
@@ -69,8 +69,8 @@ impl Iterator for AttributeIterator {
 			None
 		} else {
 			let fd = match self.file {
-				file_descriptor::owned(ref f) => f.as_raw_fd(),
-				file_descriptor::borrowed(ref f) => *f
+				FileDescriptor::Owned(ref f) => f.as_raw_fd(),
+				FileDescriptor::Borrowed(ref f) => *f
 			};
 			let attr_name = unsafe {(*ent).d_name.as_ptr()};
 			let name_str = unsafe { CStr::from_ptr(attr_name) };
@@ -258,7 +258,7 @@ impl AttributeExt for File {
 		if (d as u32) == 0 {
 			return Err(io::Error::last_os_error());
 		} else {
-			Ok(AttributeIterator{dir: d, file: file_descriptor::borrowed(fd)})
+			Ok(AttributeIterator{dir: d, file: FileDescriptor::Borrowed(fd)})
 		}
 	}
 	
@@ -273,7 +273,7 @@ impl AttributeExt for File {
 		Ok(AttributeDescriptor{name: name.to_string(), size: attr_info_data.size, raw_attribute_type: attr_info_data.attr_type})
 	}
 	
-	fn read_attribute_raw(&self, name: &str, raw_type: u32, pos: off_t) -> io::Result<Vec<u8>>{
+	fn read_attribute_raw(&self, name: &str, _raw_type: u32, _pos: off_t) -> io::Result<Vec<u8>>{
 		let fd = self.as_raw_fd();
 
 		// Get attribute stat
@@ -327,7 +327,7 @@ impl AttributeExt for Path {
 		if (d as u32) == 0 {
 			return Err(io::Error::last_os_error());
 		} else {
-			Ok(AttributeIterator{dir: d, file: file_descriptor::owned(file)})
+			Ok(AttributeIterator{dir: d, file: FileDescriptor::Owned(file)})
 		}
 	}
 	

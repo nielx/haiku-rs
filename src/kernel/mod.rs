@@ -5,8 +5,6 @@
 
 #![allow(non_camel_case_types)]
 
-pub mod fs_attr;
-
 pub mod consts {
 	pub const B_OS_NAME_LENGTH : usize = 32;
 }
