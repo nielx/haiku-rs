@@ -1,9 +1,10 @@
 extern crate haiku;
+extern crate haiku_sys;
 
 use std::env::args;
 use std::path::Path;
 
-use haiku::kernel::type_constants::*;
+use haiku_sys::*;
 use haiku::storage::attributes::{AttributeDescriptor, AttributeIterator, AttributeExt};
 
 fn get_type(type_code: u32) -> String {
