@@ -28,23 +28,6 @@ pub mod errors {
 	pub const B_INTERRUPTED: status_t = 2147483658;
 }
 
-pub mod type_constants {	
-	// not an exhaustive list!
-	pub const B_MIME_STRING_TYPE: u32 = 1296649555;
-	pub const B_STRING_TYPE: u32 = 1129534546;
-	pub const B_BOOL_TYPE: u32 = 1112493900;
-	pub const B_DOUBLE_TYPE: u32 = 1145195589;
-	pub const B_FLOAT_TYPE: u32 = 1179406164;
-	pub const B_INT8_TYPE: u32 = 1113150533;
-	pub const B_INT16_TYPE: u32 = 1397248596;
-	pub const B_INT32_TYPE: u32 = 1280265799;
-	pub const B_INT64_TYPE: u32 = 1280069191;
-	pub const B_UINT8_TYPE: u32 = 1430411604;
-	pub const B_UINT16_TYPE: u32 = 1431521364;
-	pub const B_UINT32_TYPE: u32 = 1431064135;
-	pub const B_UINT64_TYPE: u32 = 1431063623;
-}
-
 pub mod file_open_mode_constants {
 	use libc::c_int;
 	

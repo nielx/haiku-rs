@@ -1,5 +1,5 @@
 //
-// Copyright 2015, Niels Sascha Reedijk <niels.reedijk@gmail.com>
+// Copyright 2018, Niels Sascha Reedijk <niels.reedijk@gmail.com>
 // All rights reserved. Distributed under the terms of the MIT License.
 //
 
@@ -13,8 +13,11 @@ use std::path::Path;
 use haiku_sys::*;
 use libc::{c_int, off_t, size_t, ssize_t, DIR};
 
-use kernel::type_constants::*;
-
+/// Contents of a file attribute
+///
+/// File attributes are typed on BFS. This means that the file system is aware
+/// of the type of data that is stored in an attribute. This enum encapsulates
+/// some default data types that Haiku stores as attributes.
 pub enum AttributeContents {
 	UInt8(u8),
 	Int8(i8),
@@ -32,9 +35,13 @@ pub enum AttributeContents {
 	Unknown(u32, Vec<u8>),
 }
 
+/// A descriptor with the metadata of an attribute.
 pub struct AttributeDescriptor {
+	/// The name of the attribute
 	pub name: String,
+	/// The size of the data on disk
 	pub size: i64,
+	/// The raw attribute type. This is a unique number that identifies a type.
 	pub raw_attribute_type: u32,
 }
 
@@ -44,6 +51,7 @@ enum FileDescriptor {
 }
 
 
+/// An iterator to walk through attributes of a file stored on disk.
 pub struct AttributeIterator {	
 	dir: *mut DIR,
 	file: FileDescriptor,
