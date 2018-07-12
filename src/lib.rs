@@ -19,6 +19,7 @@
 extern crate haiku_sys;
 extern crate libc;
 
+pub mod app;
 pub mod kernel;
 pub mod storage;
 
