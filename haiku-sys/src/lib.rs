@@ -7,6 +7,7 @@
 
 extern crate libc;
 use libc::{c_int, c_char, DIR, dirent, off_t, size_t, ssize_t};
+use std::mem;
 
 macro_rules! haiku_constant {
 	($a:tt, $b:tt, $c:tt, $d:tt) => ((($a as u32) << 24) + (($b as u32) << 16) + (($c as u32) << 8) + ($d as u32));
@@ -15,6 +16,8 @@ macro_rules! haiku_constant {
 pub mod message;
 
 // OS.h
+pub const B_OS_NAME_LENGTH : usize = 32;
+
 pub type area_id = i32;
 pub type port_id = i32;
 pub type sem_id = i32;
@@ -23,6 +26,44 @@ pub type thread_id = i32;
 
 pub type status_t = i32;
 pub type bigtime_t = i64;
+
+#[repr(C)]
+pub struct port_info {
+	pub port: port_id,
+	pub team: team_id,
+	pub name: [c_char; B_OS_NAME_LENGTH],
+	pub capacity: i32,
+	pub queue_count: i32,
+	pub total_count: i32,
+}
+
+extern {
+	pub fn create_port(capacity: i32, name: *const c_char) -> port_id;
+	pub fn find_port(name: *const c_char) -> port_id;
+	pub fn read_port(port: port_id, code: *mut i32, buffer: *mut u8,
+										bufferSize: size_t) -> ssize_t;
+	// read_port_etc
+	pub fn write_port(port: port_id, code: i32, buffer: *const u8,
+										bufferSize: size_t) -> status_t;
+	pub fn write_port_etc(port: port_id, code: i32, buffer: *const u8,
+										bufferSize: size_t, flags: u32,
+										timeout: bigtime_t) -> status_t;
+	pub fn close_port(port: port_id) -> status_t;
+	pub fn delete_port(port: port_id) -> status_t;
+	pub fn port_buffer_size(port: port_id) -> ssize_t;
+	// port_buffer_size_etc
+	pub fn port_count(port: port_id) -> ssize_t;
+	// set_port_owner
+	
+	fn _get_port_info(port: port_id, buf: *mut port_info,
+		              portInfoSize: size_t) -> status_t;
+	// _get_next_port_info 
+}
+
+pub unsafe fn get_port_info(port: port_id, buf: &mut port_info) -> status_t {
+	_get_port_info(port, buf, mem::size_of::<port_info>() as size_t)
+}
+
 
 // fs_attr.h
 #[repr(C)]
