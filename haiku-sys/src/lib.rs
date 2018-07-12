@@ -12,6 +12,8 @@ macro_rules! haiku_constant {
 	($a:tt, $b:tt, $c:tt, $d:tt) => ((($a as u32) << 24) + (($b as u32) << 16) + (($c as u32) << 8) + ($d as u32));
 }
 
+pub mod message;
+
 // OS.h
 pub type area_id = i32;
 pub type port_id = i32;
@@ -102,6 +104,8 @@ pub const B_XATTR_TYPE: u32 = haiku_constant!('X','A','T','R');
 pub const B_NETWORK_ADDRESS_TYPE: u32 = haiku_constant!('N','W','A','D');
 pub const B_MIME_STRING_TYPE: u32 = haiku_constant!('M','I','M','S');
 
+// SupportDefs.h
+pub type type_code = u32;
 
 #[cfg(test)]
 mod tests {
