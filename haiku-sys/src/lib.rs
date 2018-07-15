@@ -17,6 +17,7 @@ pub mod message;
 
 // OS.h
 pub const B_OS_NAME_LENGTH : usize = 32;
+pub const B_TIMEOUT: u32 = 0x8;
 
 pub type area_id = i32;
 pub type port_id = i32;
@@ -42,7 +43,9 @@ extern {
 	pub fn find_port(name: *const c_char) -> port_id;
 	pub fn read_port(port: port_id, code: *mut i32, buffer: *mut u8,
 										bufferSize: size_t) -> ssize_t;
-	// read_port_etc
+	pub fn read_port_etc(port: port_id, code: *mut i32, buffer: *mut u8,
+										bufferSize: size_t, flags: u32,
+										timeout: bigtime_t) -> ssize_t;
 	pub fn write_port(port: port_id, code: i32, buffer: *const u8,
 										bufferSize: size_t) -> status_t;
 	pub fn write_port_etc(port: port_id, code: i32, buffer: *const u8,
@@ -51,7 +54,8 @@ extern {
 	pub fn close_port(port: port_id) -> status_t;
 	pub fn delete_port(port: port_id) -> status_t;
 	pub fn port_buffer_size(port: port_id) -> ssize_t;
-	// port_buffer_size_etc
+	pub fn port_buffer_size_etc(port: port_id, flags: u32, 
+										timeout: bigtime_t) -> ssize_t;
 	pub fn port_count(port: port_id) -> ssize_t;
 	// set_port_owner
 	

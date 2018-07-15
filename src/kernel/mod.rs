@@ -14,6 +14,7 @@ pub mod ports {
 	use std::io;
 	use std::io::{Error, ErrorKind};
 	use std::ffi::CString;
+	use std::time::Duration;
 	
 	/// The port object represents a Haiku port
 	///
@@ -23,6 +24,18 @@ pub mod ports {
 	/// method. There are also borrowed ports. These are retrieved using
 	/// `Ports::find_port()`. These ports will outlive the lifetime of the
 	/// `Port` object.
+	/// 
+	/// In terms of usage safety, ports are very badly designed on Haiku. While
+	/// a port does have an owning team, this merely means the port is deleted
+	/// when the team is. It does not give any additional privileges. This
+	/// means that anyone can read from every port, and even delete every port.
+	///
+	/// This API makes the assumption that there is one owner of a port. This
+	/// owner can read from the port, and has control over closing it. Other
+	/// actors should not (and cannot). This means that reading from a port is
+	/// only possible if you own it. If you try to read from a port that you
+	/// do not own, the library will panic. You do not need to be the owner to
+	/// write to a port.
 	pub struct Port {
 		port: port_id,
 		owned: bool
@@ -91,12 +104,37 @@ pub mod ports {
 			}
 		}
 		
+		/// Attempt to write data to the port
+		///
+		/// The data is identified by a `type_code` and is sent as an array of
+		/// bytes. If the port has already reached its maximum capacity, this
+		/// operation will block until the message can be written, or until the
+		/// timeout is reached. Set the timeout to 0 if you want to return
+		/// immediately if the port is at capacity.
+		pub fn try_write(&self, type_code: i32, data: &[u8], timeout: Duration) -> io::Result<()>{
+			let timeout_ms = timeout.as_secs() as i64 * 1_000_000 + timeout.subsec_micros() as i64;
+			let status = unsafe {
+				write_port_etc(self.port, type_code, data.as_ptr(), data.len() as usize,
+								B_TIMEOUT, timeout_ms) 
+			};
+			
+			// TODO: replace with B_OK
+			if status == 0 {
+				Ok(())
+			} else {
+				Err(Error::from_raw_os_error(status))
+			}
+		}
+		
 		/// Read data from a port
 		///
 		/// This method reads the next message from the port. The data is 
 		/// returned as a tuple of a type code and a buffer. The method waits
 		/// until there is a next message.
 		pub fn read(&self) -> io::Result<((i32, Vec<u8>))> {
+			if !self.owned {
+				panic!("You are trying to read from a port that you do not own. This is not allowed");
+			}
 			let size = unsafe { port_buffer_size(self.port) };
 			if size < 0 {
 				return Err(Error::from_raw_os_error(size as i32));
@@ -120,12 +158,61 @@ pub mod ports {
 			}
 		}
 		
+		/// Attempt to read data from a port
+		///
+		/// This method reads the next message from the port. The data is 
+		/// returned as a tuple of a type code and a buffer. The method waits
+		/// until there is a next message, or until when a timeout if reached.
+		/// If you don't want to wait for a message to come in, you can set the
+		/// timeout to 0
+		pub fn try_read(&self, timeout: Duration) -> io::Result<((i32, Vec<u8>))> {
+			if !self.owned {
+				panic!("You are trying to read from a port that you do not own. This is not allowed");
+			}
+			let timeout_ms = timeout.as_secs() as i64 * 1_000_000 + timeout.subsec_micros() as i64;
+			let size = unsafe { 
+				port_buffer_size_etc(self.port, B_TIMEOUT, timeout_ms) 
+			};
+			if size < 0 {
+				return Err(Error::from_raw_os_error(size as i32));
+			}
+			let mut dst = Vec::with_capacity(size as usize);
+			let pdst = dst.as_mut_ptr();
+			let mut type_code: i32 = 0;
+			let dst_len = unsafe {
+				// Technically if there is only one consumer of the port, we
+				// could use read_port without a timeout, because we already
+				// checked if there is a message waiting with a timeout above.
+				// However, there might be bad actors out there that are also
+				// listening to this port, so using the timeout again will
+				// prevent a lock when that's the case.
+				read_port_etc(self.port, &mut type_code, pdst, size as usize,
+				              B_TIMEOUT, timeout_ms)
+			};
+			
+			if dst_len > 0 && dst_len != size {
+				panic!("read_port does not return data with the predicted size");
+			}
+			
+			if dst_len < 0 {
+				Err(Error::from_raw_os_error(dst_len as i32))
+			} else {
+				unsafe { dst.set_len(dst_len as usize); };
+				Ok((type_code, dst))
+			}
+		}
+
+		
 		/// Close a port
 		///
 		/// When a port is closed, data can no longer be written to it. The
 		/// message queue can still be read. Once a port is closed, it cannot
 		/// be reopened.
 		pub fn close(&self) -> io::Result<()> {
+			if !self.owned {
+				panic!("You are trying to close a port that you do not own. This is not allowed");
+			}
+
 			let status = unsafe { close_port(self.port) };
 			if status == 0 {
 				Ok(())
@@ -191,6 +278,15 @@ fn test_basic_port() {
 	assert_eq!(port_data.len(), read_data.len());
 	port.close().unwrap();
 	assert!(port.write(port_code, port_data).is_err());
+}
+
+#[test]
+fn test_port_with_timeout() {
+	use kernel::ports::Port;
+	use std::time::Duration;
+	
+	let port = Port::create("timeout_port", 1).unwrap();
+	assert!(port.try_read(Duration::new(5,0)).is_err());
 }
 
 #[test]
