@@ -22,6 +22,11 @@ pub const MESSAGE_FLAG_REPLY_AS_KMESSAGE: u32 = 0x0100;
 pub const FIELD_FLAG_VALID: u16 = 0x0001;
 pub const FIELD_FLAG_FIXED_SIZE: u16 = 0x0002;
 
+pub const MESSAGE_FORMAT_HAIKU: u32 = haiku_constant!('1','F','M','H');
+
+// private/app/TokenSpace.h
+pub const B_NULL_TOKEN: i32 = -1;
+
 #[repr(C)]
 pub struct field_header {
 	flags: u16,
@@ -34,21 +39,22 @@ pub struct field_header {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct message_header {
-	format: u32,
-	what: u32,
-	flags: u32,
+	pub message_format: u32,
+	pub what: u32,
+	pub flags: u32,
 	
-	target: i32,
-	current_specifier: i32,
-	message_area: area_id,
+	pub target: i32,
+	pub current_specifier: i32,
+	pub message_area: area_id,
 	
-	reply_port: port_id,
-	reply_target: i32,
-	reply_team: team_id,
+	pub reply_port: port_id,
+	pub reply_target: i32,
+	pub reply_team: team_id,
 	
-	data_size: u32,
-	field_count: u32,
-	hash_table_size: u32,
-	hash_table: [i32; 5]
+	pub data_size: u32,
+	pub field_count: u32,
+	pub hash_table_size: u32,
+	pub hash_table: [i32; 5]
 }

@@ -9,6 +9,7 @@ extern crate libc;
 use libc::{c_int, c_char, DIR, dirent, off_t, size_t, ssize_t};
 use std::mem;
 
+#[macro_export]
 macro_rules! haiku_constant {
 	($a:tt, $b:tt, $c:tt, $d:tt) => ((($a as u32) << 24) + (($b as u32) << 16) + (($c as u32) << 8) + ($d as u32));
 }
