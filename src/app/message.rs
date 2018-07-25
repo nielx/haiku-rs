@@ -40,7 +40,7 @@ impl Message {
 				data_size: 0,
 				field_count: 0,
 				hash_table_size: 5,
-				hash_table: [255, 255, 255, 255, 255]
+				hash_table: [-1, -1, -1, -1, -1]
 			}
 		}
 	}
@@ -133,4 +133,14 @@ fn test_synchronous_message_sending() {
 	let port = Port::find("system:roster").unwrap();
 	let mut response_message = app_list_message.send_and_wait_for_reply(&port);
 }
+
+#[test]
+fn test_message_flattening() {
+	let constant: u32 = ((('a' as u32) << 24) + (('b' as u32) << 16) + (('c' as u32) << 8) + ('d' as u32));
+	let basic_message = Message::new(constant);
+	let flattened_message = basic_message.flatten();
+	let comparison: Vec<u8> = vec!(72, 77, 70, 49, 100, 99, 98, 97, 1, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255);
+	assert_eq!(flattened_message, comparison);
+}
+
 	
