@@ -5,10 +5,12 @@
 
 use std::mem::{size_of};
 use std::slice::from_raw_parts;
+
+use haiku_sys::B_MESSAGE_TYPE;
 use haiku_sys::message::*;
 
+use ::kernel::ports::Port;
 use ::support::flattenable::Flattenable;
-use haiku_sys::B_MESSAGE_TYPE;
 
 /// A rustean representation of a BMessage
 ///
@@ -41,6 +43,26 @@ impl Message {
 				hash_table: [255, 255, 255, 255, 255]
 			}
 		}
+	}
+	
+	pub fn send_and_wait_for_reply(&mut self, target_port: &Port) -> Option<Message> {
+		// Create a reply port (and maybe cache)
+		let p: Port = Port::create("tmp_reply_port", 1).unwrap();
+		let info = p.get_info().unwrap();
+		
+		// Fill out header info
+		self.header.target = B_NULL_TOKEN; //TODO: allow other options
+		self.header.reply_port = p.get_port_id();
+		self.header.reply_target = B_NULL_TOKEN;
+		self.header.reply_team = info.team.get_team_id();
+		self.header.flags |= MESSAGE_FLAG_WAS_DELIVERED;
+		
+		self.header.flags |= MESSAGE_FLAG_REPLY_REQUIRED;
+		self.header.flags &= !MESSAGE_FLAG_REPLY_DONE;
+		
+		let flattened_message = self.flatten();
+		target_port.write(B_MESSAGE_TYPE as i32, &flattened_message);
+		unimplemented!();
 	}
 }
 
@@ -83,7 +105,7 @@ impl Flattenable<Message> for Message {
 			// TODO: unflatten larger messages
 			unimplemented!()
 		}
-				
+
 		let data_ptr: *const u8 = buffer.as_ptr();
 		let header_ptr: *const message_header = data_ptr as *const _;
 		let header_ref: &message_header = unsafe { &*header_ptr };
@@ -102,3 +124,13 @@ fn test_basic_message() {
 	let unflattened_msg = Message::unflatten(flattened_msg.as_slice()).unwrap();
 	assert_eq!(unflattened_msg.what, msg_constant);
 }
+
+#[test]
+fn test_synchronous_message_sending() {
+	use kernel::ports::Port;
+	let constant: u32 = ((('r' as u32) << 24) + (('g' as u32) << 16) + (('a' as u32) << 8) + ('l' as u32));
+	let mut app_list_message = Message::new(constant);
+	let port = Port::find("system:roster").unwrap();
+	let mut response_message = app_list_message.send_and_wait_for_reply(&port);
+}
+	

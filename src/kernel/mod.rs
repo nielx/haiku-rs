@@ -10,11 +10,15 @@
 ///
 /// Ports are the lower level transportation mechanism for Messages. 
 pub mod ports {
+	use libc::c_char;
 	use haiku_sys::*;
 	use std::io;
 	use std::io::{Error, ErrorKind};
-	use std::ffi::CString;
+	use std::ffi::{CStr, CString};
+	use std::mem;
 	use std::time::Duration;
+	
+	use kernel::teams::Team;
 	
 	/// The port object represents a Haiku port
 	///
@@ -39,6 +43,20 @@ pub mod ports {
 	pub struct Port {
 		port: port_id,
 		owned: bool
+	}
+	
+	/// Properties of the port
+	pub struct PortInfo {
+		/// Representation of the team that the port is part of
+		pub team: Team,
+		/// The name of the port
+		pub name: String,
+		/// The capacity of the port
+		pub capacity: i32,
+		/// The number of items in the queue at the time of getting the info
+		pub queue_count: i32,
+		/// The total number of messages passed through this port
+		pub total_count: i32
 	}
 	
 	impl Port {
@@ -201,7 +219,7 @@ pub mod ports {
 				Ok((type_code, dst))
 			}
 		}
-
+		
 		
 		/// Close a port
 		///
@@ -220,6 +238,33 @@ pub mod ports {
 				Err(Error::from_raw_os_error(status))
 			}
 		}
+		
+		/// Get the port info
+		pub fn get_info(&self) -> io::Result<PortInfo> {
+			let mut info: port_info = unsafe { mem::zeroed() };
+			let status = unsafe {
+				get_port_info(self.port, &mut info)
+			};
+			if status != 0 {
+				Err(Error::from_raw_os_error(status))
+			} else {
+				let c_name = unsafe {
+					CStr::from_ptr((&info.name) as *const c_char)
+				};
+				Ok(PortInfo{
+					team: Team::from(info.team).unwrap(),
+					name: String::from(c_name.to_str().unwrap()),
+					capacity: info.capacity,
+					queue_count: info.queue_count,
+					total_count: info.total_count
+				})
+			}
+		}
+		
+		/// Get the underlying port id
+		pub fn get_port_id(&self) -> port_id{
+			self.port
+		}
 	}
 	
 	impl Drop for Port {
@@ -230,7 +275,32 @@ pub mod ports {
 		}
 	}
 }
+
+
+/// A team is a unique process that is running on Haiku
+pub mod teams {
+	use haiku_sys::*;
+	/// This struct is a representation of a team
+	pub struct Team {
+		id: team_id
+	}
 	
+	impl Team {
+		/// Build a team object from a raw team id
+		pub fn from(id: team_id) -> Option<Team> {
+			if id < 0 {
+				None
+			} else {
+				Some(Team{ id })
+			}
+		}
+		
+		/// Get the raw team identifier
+		pub fn get_team_id(&self) -> team_id {
+			self.id
+		}
+	}
+}
 
 // TODO: Legacy code, this should be moved soon!
 pub mod errors {
