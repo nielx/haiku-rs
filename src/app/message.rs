@@ -20,6 +20,7 @@ pub struct Message {
 	/// A 32 bit integer that gives a signature to the message
 	pub what: u32,
 	header: message_header,
+	fields: Vec<field_header>
 }
 
 impl Message {
@@ -41,7 +42,8 @@ impl Message {
 				field_count: 0,
 				hash_table_size: 5,
 				hash_table: [-1, -1, -1, -1, -1]
-			}
+			},
+			fields: Vec::new()
 		}
 	}
 	
@@ -63,6 +65,53 @@ impl Message {
 		let flattened_message = self.flatten();
 		target_port.write(B_MESSAGE_TYPE as i32, &flattened_message);
 		unimplemented!();
+	}
+	
+	pub fn add_field<T: Flattenable<T>>(&mut self, name: &str, data: &T) {
+		// BMessage has an optimization where some headers are pre-allocated
+		// to avoid reallocating the header array. We should implement this,
+		// TODO: Vec::with_capacity can help with implementing this
+		
+		let mut flags: u16 = FIELD_FLAG_VALID;
+		if T::is_fixed_size() {
+			flags |= FIELD_FLAG_FIXED_SIZE;
+		}
+		
+		let hash: u32 = self.hash_name(name) % self.header.hash_table_size;
+		
+		{
+			let mut next_field = &mut self.header.hash_table[hash as usize];
+			while *next_field >= 0 {
+				next_field = &mut (self.fields[*next_field as usize].next_field);
+			}
+			
+			*next_field = self.header.field_count as i32;
+		}
+		
+		self.fields.push(field_header {
+			flags: flags,
+			name_length: name.len() as u16 + 1,
+			field_type: T::type_code(),
+			count: 0,
+			data_size: data.flattened_size() as u32,
+			offset: self.header.data_size,
+			next_field: -1
+		});
+		
+		self.header.field_count += 1;
+		
+		//
+	}		
+
+	fn hash_name(&self, name: &str) -> u32 {
+		let mut result: u32 = 0;
+		for byte in name.bytes() {
+			result = (result << 7) ^ (result >> 24);
+			result ^= byte as u32;
+		}
+		
+		result ^= result << 12;
+		result
 	}
 }
 
@@ -111,7 +160,8 @@ impl Flattenable<Message> for Message {
 		let header_ref: &message_header = unsafe { &*header_ptr };
 		Some(Message{
 			what: header_ref.what,
-			header: header_ref.clone()
+			header: header_ref.clone(),
+			fields: Vec::new() //TODO!
 		})
 	}
 }

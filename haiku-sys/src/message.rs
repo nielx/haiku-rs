@@ -29,13 +29,13 @@ pub const B_NULL_TOKEN: i32 = -1;
 
 #[repr(C)]
 pub struct field_header {
-	flags: u16,
-	name_length: u16,
-	field_type: type_code, // The original name 'type' is reserved
-	count: u32,
-	data_size: u32,
-	offset: u32,
-	next_field: i32
+	pub flags: u16,
+	pub name_length: u16,
+	pub field_type: type_code, // The original name 'type' is reserved
+	pub count: u32,
+	pub data_size: u32,
+	pub offset: u32,
+	pub next_field: i32
 }
 
 #[repr(C)]
