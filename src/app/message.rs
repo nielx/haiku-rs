@@ -4,6 +4,7 @@
 //
 
 use std::mem::{size_of};
+use std::ptr;
 use std::slice::from_raw_parts;
 
 use haiku_sys::B_MESSAGE_TYPE;
@@ -20,7 +21,8 @@ pub struct Message {
 	/// A 32 bit integer that gives a signature to the message
 	pub what: u32,
 	header: message_header,
-	fields: Vec<field_header>
+	fields: Vec<field_header>,
+	data: Vec<u8>
 }
 
 impl Message {
@@ -43,7 +45,8 @@ impl Message {
 				hash_table_size: 5,
 				hash_table: [-1, -1, -1, -1, -1]
 			},
-			fields: Vec::new()
+			fields: Vec::new(),
+			data: Vec::new()
 		}
 	}
 	
@@ -78,21 +81,25 @@ impl Message {
 		}
 		
 		let hash: u32 = self.hash_name(name) % self.header.hash_table_size;
-		
-		{
-			let mut next_field = &mut self.header.hash_table[hash as usize];
-			while *next_field >= 0 {
-				next_field = &mut (self.fields[*next_field as usize].next_field);
+		let mut current_index: i32 = self.header.hash_table[hash as usize];
+		if current_index >= 0 {
+			{
+				let mut next_field: &field_header = &self.fields[current_index as usize];
+				while next_field.next_field >= 0 {
+					current_index = next_field.next_field;
+					next_field = &self.fields[current_index as usize];
+				}
 			}
-			
-			*next_field = self.header.field_count as i32;
+			self.fields.get_mut(current_index as usize).unwrap().next_field = current_index;
+		} else {
+			self.header.hash_table[hash as usize] = self.header.field_count as i32;
 		}
 		
 		self.fields.push(field_header {
 			flags: flags,
 			name_length: name.len() as u16 + 1,
 			field_type: T::type_code(),
-			count: 0,
+			count: 1, // TODO: add more flexibility for multiple fields
 			data_size: data.flattened_size() as u32,
 			offset: self.header.data_size,
 			next_field: -1
@@ -100,7 +107,22 @@ impl Message {
 		
 		self.header.field_count += 1;
 		
-		//
+		// Store name to the vector
+		let data_size = name.len() + 1 + data.flattened_size();
+		self.data.reserve(data_size);
+		for byte in name.as_bytes() {
+			self.data.push(*byte);
+		}
+		self.data.push('\0' as u8);
+				
+		// Copy the data
+		// TODO: we really want to add a flatten_into function to stop the
+		// double copy
+		let mut data = data.flatten();
+		self.data.append(&mut data);
+		
+		// Update the header
+		self.header.data_size += data_size as u32;
 	}		
 
 	fn hash_name(&self, name: &str) -> u32 {
@@ -121,11 +143,7 @@ impl Flattenable<Message> for Message {
 	}
 	
 	fn flattened_size(&self) -> usize {
-		// TODO: support for fields
-		return size_of::<message_header>();
-		
-		// From BMessage::FlattenedSize()
-		// sizeof(message_header) + num_fields * sizeof(field_header) + data_len
+		return size_of::<message_header>() + size_of::<field_header>() * self.fields.len() + self.data.len();
 	}
 	
 	fn is_fixed_size() -> bool {
@@ -133,11 +151,36 @@ impl Flattenable<Message> for Message {
 	}
 	
 	fn flatten(&self) -> Vec<u8> {
-		// TODO: add headers and fields
-		let bytes: &[u8] = unsafe { 
-			from_raw_parts((&self.header as *const message_header) as *const u8, size_of::<message_header>())
-		};
-		bytes.to_vec()
+		let mut vec: Vec<u8> = vec![0;self.flattened_size()];
+		// Copy message header
+		{
+			let (message_header_slice, _) = vec.as_mut_slice().split_at_mut(size_of::<message_header>());
+			let message_header_bytes: &[u8] = unsafe { 
+				from_raw_parts((&self.header as *const message_header) as *const u8, size_of::<message_header>())
+			};
+			message_header_slice.clone_from_slice(message_header_bytes);
+		}
+		// Copy field headers and data
+		if self.fields.len() > 0 {
+			{
+				let (_, field_header_slice) = vec.as_mut_slice().split_at_mut(size_of::<message_header>());
+				let field_header_bytes: &[u8] = unsafe { 
+					from_raw_parts((self.fields.as_slice() as *const [field_header]) as *const u8, size_of::<field_header>())
+				};
+				unsafe {
+					ptr::copy_nonoverlapping(field_header_bytes.as_ptr(), field_header_slice.as_mut_ptr(), size_of::<field_header>() * self.fields.len());
+				}
+			}
+			{
+				// Copy data
+				let(_, data_slice) = vec.as_mut_slice().split_at_mut(size_of::<message_header>() + size_of::<field_header>() * self.fields.len());
+				unsafe {
+					ptr::copy_nonoverlapping(self.data.as_ptr(), data_slice.as_mut_ptr(), self.data.len());
+				}
+			}
+		}
+		
+		vec
 	}
 	
 	fn unflatten(buffer: &[u8]) -> Option<Message> {
@@ -161,7 +204,8 @@ impl Flattenable<Message> for Message {
 		Some(Message{
 			what: header_ref.what,
 			header: header_ref.clone(),
-			fields: Vec::new() //TODO!
+			fields: Vec::new(), //TODO!
+			data: Vec::new() //TODO!
 		})
 	}
 }
@@ -190,6 +234,14 @@ fn test_message_flattening() {
 	let basic_message = Message::new(constant);
 	let flattened_message = basic_message.flatten();
 	let comparison: Vec<u8> = vec!(72, 77, 70, 49, 100, 99, 98, 97, 1, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255);
+	assert_eq!(flattened_message, comparison);
+
+	// Second message
+	let constant: u32 = ((('e' as u32) << 24) + (('f' as u32) << 16) + (('g' as u32) << 8) + ('h' as u32));
+	let mut message_with_data = Message::new(constant);
+	message_with_data.add_field("UInt8", &('a' as u8));
+	let flattened_message = message_with_data.flatten();
+	let comparison: Vec<u8> = vec!(72, 77, 70, 49, 104, 103, 102, 101, 1, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 7, 0, 0, 0, 1, 0, 0, 0, 5, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 3, 0, 6, 0, 84, 89, 66, 85, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 85, 73, 110, 116, 56, 0, 97);
 	assert_eq!(flattened_message, comparison);
 }
 

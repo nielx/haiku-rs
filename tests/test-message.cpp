@@ -2,9 +2,8 @@
 #include <iostream>
 using namespace std;
 
-int
-main(int argc, char** argv) {
-	BMessage msg('abcd');
+void
+print_to_stream(BMessage &msg) {
 	msg.PrintToStream();
 	uint8 *buffer = new uint8[msg.FlattenedSize()];
 	msg.Flatten((char *)buffer, msg.FlattenedSize());
@@ -13,5 +12,15 @@ main(int argc, char** argv) {
 		cout << unsigned(buffer[i]) << ", ";
 	}
 	cout << ");\n\n";
+}
+
+
+int
+main(int argc, char** argv) {
+	BMessage msg('abcd');
+	print_to_stream(msg);
+	BMessage msg2('efgh');
+	msg2.AddUInt8("UInt8", 'a');
+	print_to_stream(msg2);
 	return 0;
 }
