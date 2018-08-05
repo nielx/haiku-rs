@@ -21,6 +21,7 @@ main(int argc, char** argv) {
 	print_to_stream(msg);
 	BMessage msg2('efgh');
 	msg2.AddUInt8("UInt8", 'a');
+	msg2.AddUInt16("UInt16", 1234);
 	print_to_stream(msg2);
 	return 0;
 }

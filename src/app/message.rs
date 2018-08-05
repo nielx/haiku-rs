@@ -67,7 +67,17 @@ impl Message {
 		
 		let flattened_message = self.flatten();
 		target_port.write(B_MESSAGE_TYPE as i32, &flattened_message);
-		unimplemented!();
+		let result = p.read();
+		match &result {
+			Ok(data) => println!("message: {:?}", data),
+			Err(error) => return None
+		}
+		let message = Message::unflatten(&result.unwrap().1.as_slice());
+		match message {
+			Some(msg) => println!("msg"),
+			None => println!("cannot convert")
+		}
+		None
 	}
 	
 	pub fn add_field<T: Flattenable<T>>(&mut self, name: &str, data: &T) {
@@ -222,10 +232,15 @@ fn test_basic_message() {
 #[test]
 fn test_synchronous_message_sending() {
 	use kernel::ports::Port;
-	let constant: u32 = ((('r' as u32) << 24) + (('g' as u32) << 16) + (('a' as u32) << 8) + ('l' as u32));
-	let mut app_list_message = Message::new(constant);
-	let port = Port::find("system:roster").unwrap();
-	let mut response_message = app_list_message.send_and_wait_for_reply(&port);
+	use libc::getuid;
+	// B_GET_LAUNCH_DATA is defined as 'lnda' see LaunchDaemonDefs.h
+	let constant: u32 = ((('l' as u32) << 24) + (('n' as u32) << 16) + (('d' as u32) << 8) + ('a' as u32));
+	let mut app_data_message = Message::new(constant);
+	app_data_message.add_field("name", &String::from("application/x-vnd.haiku-registrar"));
+	let uid = unsafe { getuid() };
+	app_data_message.add_field("user", &(uid as i32));
+	let port = Port::find("system:launch_daemon").unwrap();
+	let mut response_message = app_data_message.send_and_wait_for_reply(&port);
 }
 
 #[test]
@@ -240,8 +255,9 @@ fn test_message_flattening() {
 	let constant: u32 = ((('e' as u32) << 24) + (('f' as u32) << 16) + (('g' as u32) << 8) + ('h' as u32));
 	let mut message_with_data = Message::new(constant);
 	message_with_data.add_field("UInt8", &('a' as u8));
+	message_with_data.add_field("UInt16", &(1234 as u16));
 	let flattened_message = message_with_data.flatten();
-	let comparison: Vec<u8> = vec!(72, 77, 70, 49, 104, 103, 102, 101, 1, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 7, 0, 0, 0, 1, 0, 0, 0, 5, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 3, 0, 6, 0, 84, 89, 66, 85, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 85, 73, 110, 116, 56, 0, 97);
+	let comparison: Vec<u8> = vec!(72, 77, 70, 49, 104, 103, 102, 101, 1, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 16, 0, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0, 1, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 3, 0, 6, 0, 84, 89, 66, 85, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 3, 0, 7, 0, 84, 72, 83, 85, 1, 0, 0, 0, 2, 0, 0, 0, 7, 0, 0, 0, 255, 255, 255, 255, 85, 73, 110, 116, 56, 0, 97, 85, 73, 110, 116, 49, 54, 0, 210, 4);
 	assert_eq!(flattened_message, comparison);
 }
 
