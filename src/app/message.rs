@@ -8,7 +8,7 @@ use std::mem::{size_of, transmute_copy};
 use std::ptr;
 use std::slice::from_raw_parts;
 
-use haiku_sys::B_MESSAGE_TYPE;
+use haiku_sys::{B_ANY_TYPE, B_MESSAGE_TYPE};
 use haiku_sys::message::*;
 
 use ::kernel::ports::Port;
@@ -81,13 +81,87 @@ impl Message {
 		None
 	}
 	
-	pub fn add_field<T: Flattenable<T>>(&mut self, name: &str, data: &T) {
+	pub fn add_data<T: Flattenable<T>>(&mut self, name: &str, data: &T) {
+		if self.header.message_area > 0 {
+			// Todo: implement support for messages with areas
+			unimplemented!()
+		}
+		
+		let result = self.find_field(name, T::type_code());
+		let field_index = match result {
+			Some(index) => unimplemented!("We did not implement multiple values"),
+			None => self.add_field(name, T::type_code(), T::is_fixed_size())
+		};
+		
+		let mut field_header = self.fields.get_mut(field_index).unwrap();
+		// Copy the data
+		// TODO: we really want to add a flatten_into function to stop the
+		// double copy
+		let data_size = data.flattened_size();
+		let data_size_info = if T::is_fixed_size() {
+			0 
+		} else {
+			size_of::<u32>()
+		};
+		self.data.reserve(data_size + data_size_info);
+		if !T::is_fixed_size() {
+			self.data.append(&mut (data_size as u32).flatten());
+		}
+		let mut data = data.flatten();
+		self.data.append(&mut data);
+		
+		// Update the headers
+		field_header.count += 1;
+		field_header.data_size = (data_size + data_size_info) as u32;
+		self.header.data_size += (data_size + data_size_info) as u32;
+	}
+
+	fn hash_name(&self, name: &str) -> u32 {
+		let mut result: u32 = 0;
+		for byte in name.bytes() {
+			result = (result << 7) ^ (result >> 24);
+			result ^= byte as u32;
+		}
+		
+		result ^= result << 12;
+		result
+	}
+
+	fn find_field(&self, name: &str, type_code: u32) -> Option<usize> {
+		if name.len() == 0 {
+			return None
+		}
+		
+		if self.header.field_count == 0 {
+			return None
+		}
+		
+		let hash = self.hash_name(name) % self.header.hash_table_size;
+		let mut next_index = self.header.hash_table[hash as usize];
+		
+		while next_index >= 0 {
+			let field = &self.fields[next_index as usize];
+			let start = field.offset as usize;
+			let end = (field.offset + field.name_length as u32) as usize;
+			if *name.as_bytes() == self.data[start..end] {
+				if field.field_type == type_code || type_code == B_ANY_TYPE {
+					return Some(next_index as usize);
+				} else {
+					return None
+				}
+			}
+			
+			next_index = field.next_field;
+		}
+		None
+	}
+	
+	fn add_field(&mut self, name: &str, type_code: u32, is_fixed_size: bool) -> usize {
 		// BMessage has an optimization where some headers are pre-allocated
 		// to avoid reallocating the header array. We should implement this,
 		// TODO: Vec::with_capacity can help with implementing this
-		
 		let mut flags: u16 = FIELD_FLAG_VALID;
-		if T::is_fixed_size() {
+		if is_fixed_size {
 			flags |= FIELD_FLAG_FIXED_SIZE;
 		}
 		
@@ -101,7 +175,7 @@ impl Message {
 					next_field = &self.fields[current_index as usize];
 				}
 			}
-			self.fields.get_mut(current_index as usize).unwrap().next_field = current_index;
+			self.fields.get_mut(current_index as usize).unwrap().next_field = self.header.field_count as i32;
 		} else {
 			self.header.hash_table[hash as usize] = self.header.field_count as i32;
 		}
@@ -109,42 +183,25 @@ impl Message {
 		self.fields.push(field_header {
 			flags: flags,
 			name_length: name.len() as u16 + 1,
-			field_type: T::type_code(),
-			count: 1, // TODO: add more flexibility for multiple fields
-			data_size: data.flattened_size() as u32,
+			field_type: type_code,
+			count: 0,
+			data_size: 0,
 			offset: self.header.data_size,
 			next_field: -1
 		});
-		
+
 		self.header.field_count += 1;
-		
+		self.header.data_size += (name.len() as u32) + 1;
+
 		// Store name to the vector
-		let data_size = name.len() + 1 + data.flattened_size();
-		self.data.reserve(data_size);
+		let data_size = (name.len() as u32) + 1;
+		self.data.reserve(data_size as usize);
 		for byte in name.as_bytes() {
 			self.data.push(*byte);
 		}
 		self.data.push('\0' as u8);
-				
-		// Copy the data
-		// TODO: we really want to add a flatten_into function to stop the
-		// double copy
-		let mut data = data.flatten();
-		self.data.append(&mut data);
 		
-		// Update the header
-		self.header.data_size += data_size as u32;
-	}		
-
-	fn hash_name(&self, name: &str) -> u32 {
-		let mut result: u32 = 0;
-		for byte in name.bytes() {
-			result = (result << 7) ^ (result >> 24);
-			result ^= byte as u32;
-		}
-		
-		result ^= result << 12;
-		result
+		return (self.header.field_count - 1) as usize;
 	}
 }
 
@@ -257,9 +314,9 @@ fn test_synchronous_message_sending() {
 	// B_GET_LAUNCH_DATA is defined as 'lnda' see LaunchDaemonDefs.h
 	let constant: u32 = ((('l' as u32) << 24) + (('n' as u32) << 16) + (('d' as u32) << 8) + ('a' as u32));
 	let mut app_data_message = Message::new(constant);
-	app_data_message.add_field("name", &String::from("application/x-vnd.haiku-registrar"));
+	app_data_message.add_data("name", &String::from("application/x-vnd.haiku-registrar"));
 	let uid = unsafe { getuid() };
-	app_data_message.add_field("user", &(uid as i32));
+	app_data_message.add_data("user", &(uid as i32));
 	let port = Port::find("system:launch_daemon").unwrap();
 	let mut response_message = app_data_message.send_and_wait_for_reply(&port);
 	
@@ -276,8 +333,8 @@ fn test_message_flattening() {
 	// Second message
 	let constant: u32 = ((('e' as u32) << 24) + (('f' as u32) << 16) + (('g' as u32) << 8) + ('h' as u32));
 	let mut message_with_data = Message::new(constant);
-	message_with_data.add_field("UInt8", &('a' as u8));
-	message_with_data.add_field("UInt16", &(1234 as u16));
+	message_with_data.add_data("UInt8", &('a' as u8));
+	message_with_data.add_data("UInt16", &(1234 as u16));
 	let flattened_message = message_with_data.flatten();
 	let comparison: Vec<u8> = vec!(72, 77, 70, 49, 104, 103, 102, 101, 1, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 16, 0, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0, 1, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 3, 0, 6, 0, 84, 89, 66, 85, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 3, 0, 7, 0, 84, 72, 83, 85, 1, 0, 0, 0, 2, 0, 0, 0, 7, 0, 0, 0, 255, 255, 255, 255, 85, 73, 110, 116, 56, 0, 97, 85, 73, 110, 116, 49, 54, 0, 210, 4);
 	assert_eq!(flattened_message, comparison);
@@ -285,8 +342,8 @@ fn test_message_flattening() {
 	// Third message
 	let constant: u32 = ((('l' as u32) << 24) + (('n' as u32) << 16) + (('d' as u32) << 8) + ('a' as u32));
 	let mut app_data_message = Message::new(constant);
-	app_data_message.add_field("name", &String::from("application/x-vnd.haiku-registrar"));
-	app_data_message.add_field("user", &(0));
+	app_data_message.add_data("name", &String::from("application/x-vnd.haiku-registrar"));
+	app_data_message.add_data("user", &(0));
 	let comparison: Vec<u8> = vec!(72, 77, 70, 49, 97, 100, 110, 108, 1, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 52, 0, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 1, 0, 5, 0, 82, 84, 83, 67, 1, 0, 0, 0, 38, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 3, 0, 5, 0, 71, 78, 79, 76, 1, 0, 0, 0, 4, 0, 0, 0, 43, 0, 0, 0, 255, 255, 255, 255, 110, 97, 109, 101, 0, 34, 0, 0, 0, 97, 112, 112, 108, 105, 99, 97, 116, 105, 111, 110, 47, 120, 45, 118, 110, 100, 46, 104, 97, 105, 107, 117, 45, 114, 101, 103, 105, 115, 116, 114, 97, 114, 0, 117, 115, 101, 114, 0, 0, 0, 0, 0);
 	let flattened_message = app_data_message.flatten();
 	assert_eq!(flattened_message, comparison);
