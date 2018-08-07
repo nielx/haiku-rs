@@ -23,5 +23,9 @@ main(int argc, char** argv) {
 	msg2.AddUInt8("UInt8", 'a');
 	msg2.AddUInt16("UInt16", 1234);
 	print_to_stream(msg2);
+	BMessage msg3('lnda');
+	msg3.AddString("name", "application/x-vnd.haiku-registrar");
+	msg3.AddInt32("user", getuid());
+	print_to_stream(msg3);
 	return 0;
 }

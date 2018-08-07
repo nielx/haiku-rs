@@ -261,7 +261,6 @@ fn test_synchronous_message_sending() {
 	let uid = unsafe { getuid() };
 	app_data_message.add_field("user", &(uid as i32));
 	let port = Port::find("system:launch_daemon").unwrap();
-	println!("Outgoing message: {:?}", app_data_message);
 	let mut response_message = app_data_message.send_and_wait_for_reply(&port);
 	
 }
@@ -282,6 +281,13 @@ fn test_message_flattening() {
 	let flattened_message = message_with_data.flatten();
 	let comparison: Vec<u8> = vec!(72, 77, 70, 49, 104, 103, 102, 101, 1, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 16, 0, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0, 1, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 3, 0, 6, 0, 84, 89, 66, 85, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 3, 0, 7, 0, 84, 72, 83, 85, 1, 0, 0, 0, 2, 0, 0, 0, 7, 0, 0, 0, 255, 255, 255, 255, 85, 73, 110, 116, 56, 0, 97, 85, 73, 110, 116, 49, 54, 0, 210, 4);
 	assert_eq!(flattened_message, comparison);
-}
-
 	
+	// Third message
+	let constant: u32 = ((('l' as u32) << 24) + (('n' as u32) << 16) + (('d' as u32) << 8) + ('a' as u32));
+	let mut app_data_message = Message::new(constant);
+	app_data_message.add_field("name", &String::from("application/x-vnd.haiku-registrar"));
+	app_data_message.add_field("user", &(0));
+	let comparison: Vec<u8> = vec!(72, 77, 70, 49, 97, 100, 110, 108, 1, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 52, 0, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 1, 0, 5, 0, 82, 84, 83, 67, 1, 0, 0, 0, 38, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 3, 0, 5, 0, 71, 78, 79, 76, 1, 0, 0, 0, 4, 0, 0, 0, 43, 0, 0, 0, 255, 255, 255, 255, 110, 97, 109, 101, 0, 34, 0, 0, 0, 97, 112, 112, 108, 105, 99, 97, 116, 105, 111, 110, 47, 120, 45, 118, 110, 100, 46, 104, 97, 105, 107, 117, 45, 114, 101, 103, 105, 115, 116, 114, 97, 114, 0, 117, 115, 101, 114, 0, 0, 0, 0, 0);
+	let flattened_message = app_data_message.flatten();
+	assert_eq!(flattened_message, comparison);
+}
