@@ -3,7 +3,8 @@
 // All rights reserved. Distributed under the terms of the MIT License.
 //
 
-use std::mem::{size_of};
+use std::fmt;
+use std::mem::{size_of, transmute_copy};
 use std::ptr;
 use std::slice::from_raw_parts;
 
@@ -74,7 +75,7 @@ impl Message {
 		}
 		let message = Message::unflatten(&result.unwrap().1.as_slice());
 		match message {
-			Some(msg) => println!("msg"),
+			Some(msg) => println!("msg: {:?}", msg),
 			None => println!("cannot convert")
 		}
 		None
@@ -220,6 +221,26 @@ impl Flattenable<Message> for Message {
 	}
 }
 
+impl fmt::Debug for Message {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		// TODO: make this mirror BMessage::PrintToStream()
+		let chars = unsafe { transmute_copy::<u32, [u8; 4]>(&self.what) };
+		let mut print_chars = true;
+		for ch in chars.iter() {
+			if !(*ch as char).is_ascii_graphic() {
+				print_chars = false;
+				break;
+			}
+		}
+		
+		if print_chars {
+			write!(f, "BMessage: ({:?})", (chars[3] as char, chars[2] as char, chars[1] as char, chars[0] as char))
+		} else {
+			write!(f, "BMessage: ({})", self.what)
+		}
+	}
+}
+
 #[test]
 fn test_basic_message() {
 	let msg_constant = 1234567890;
@@ -240,7 +261,9 @@ fn test_synchronous_message_sending() {
 	let uid = unsafe { getuid() };
 	app_data_message.add_field("user", &(uid as i32));
 	let port = Port::find("system:launch_daemon").unwrap();
+	println!("Outgoing message: {:?}", app_data_message);
 	let mut response_message = app_data_message.send_and_wait_for_reply(&port);
+	
 }
 
 #[test]
