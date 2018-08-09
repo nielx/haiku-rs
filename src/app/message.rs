@@ -7,6 +7,7 @@ use std::fmt;
 use std::mem::{size_of, transmute_copy};
 use std::ptr;
 use std::slice::from_raw_parts;
+use std::str;
 
 use haiku_sys::{B_ANY_TYPE, B_MESSAGE_TYPE};
 use haiku_sys::message::*;
@@ -261,20 +262,42 @@ impl Flattenable<Message> for Message {
 			return None;
 		}
 		
-		if buffer.len() > size_of::<message_header>() {
-			// TODO: unflatten larger messages
-			unimplemented!()
+		if buffer.len() < size_of::<message_header>() {
+			// TODO: return error that message is too small
+			return None;
 		}
 
-		let data_ptr: *const u8 = buffer.as_ptr();
+		let mut data_ptr: *const u8 = buffer.as_ptr();
 		let header_ptr: *const message_header = data_ptr as *const _;
 		let header_ref: &message_header = unsafe { &*header_ptr };
-		Some(Message{
+		
+		let mut msg = Message{
 			what: header_ref.what,
 			header: header_ref.clone(),
-			fields: Vec::new(), //TODO!
-			data: Vec::new() //TODO!
-		})
+			fields: Vec::new(),
+			data: Vec::new()
+		};
+		
+		let total_size = size_of::<message_header>() + size_of::<field_header>() * msg.header.field_count as usize + msg.header.data_size as usize;
+		
+		if total_size != buffer.len() {
+			// TODO: Error that the size of the buffer does not match the message
+			return None;
+		}
+		
+		let mut offset = size_of::<message_header>();
+		for i in 0..msg.header.field_count {
+			let (_, field_header_slice) = buffer.split_at(offset);
+			let field_header_ptr: *const field_header = field_header_slice.as_ptr() as *const _;
+			let field_header_ref: &field_header = unsafe {&*field_header_ptr };
+			msg.fields.push(field_header_ref.clone());
+			offset += size_of::<field_header>();
+		}
+		
+		let (_, data_part_slice) = buffer.split_at(offset);
+		msg.data.extend_from_slice(data_part_slice);
+		
+		Some(msg)
 	}
 }
 
@@ -290,10 +313,21 @@ impl fmt::Debug for Message {
 			}
 		}
 		
-		if print_chars {
+		let result = if print_chars {
 			write!(f, "BMessage: ({:?})", (chars[3] as char, chars[2] as char, chars[1] as char, chars[0] as char))
 		} else {
 			write!(f, "BMessage: ({})", self.what)
+		};
+		
+		if self.fields.len() > 0 {
+			write!(f, "\n{{\n").ok();
+			for field in self.fields.iter() {
+				let name_slice = &self.data[(field.offset as usize)..(field.offset + field.name_length as u32) as usize];
+				write!(f, "\t{}\n", str::from_utf8(name_slice).unwrap()).ok();
+			}
+			write!(f, "}}")
+		} else {
+			result
 		}
 	}
 }

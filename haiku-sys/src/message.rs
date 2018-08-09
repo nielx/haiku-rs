@@ -32,6 +32,7 @@ pub const B_HANDLER_TOKEN: i32 = 1;
 pub const B_SERVER_TOKEN: i32 = 2;
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct field_header {
 	pub flags: u16,
 	pub name_length: u16,
