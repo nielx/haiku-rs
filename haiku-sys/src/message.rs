@@ -25,7 +25,11 @@ pub const FIELD_FLAG_FIXED_SIZE: u16 = 0x0002;
 pub const MESSAGE_FORMAT_HAIKU: u32 = haiku_constant!('1','F','M','H');
 
 // private/app/TokenSpace.h
+pub const B_PREFERRED_TOKEN: i32 = -2;
 pub const B_NULL_TOKEN: i32 = -1;
+pub const B_ANY_TOKEN: i32 = 0;
+pub const B_HANDLER_TOKEN: i32 = 1;
+pub const B_SERVER_TOKEN: i32 = 2;
 
 #[repr(C)]
 pub struct field_header {

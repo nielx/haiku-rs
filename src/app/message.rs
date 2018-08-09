@@ -57,7 +57,7 @@ impl Message {
 		let info = p.get_info().unwrap();
 		
 		// Fill out header info
-		self.header.target = B_NULL_TOKEN; //TODO: allow other options
+		self.header.target = B_PREFERRED_TOKEN; //TODO: allow other options
 		self.header.reply_port = p.get_port_id();
 		self.header.reply_target = B_NULL_TOKEN;
 		self.header.reply_team = info.team.get_team_id();
