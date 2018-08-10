@@ -116,6 +116,21 @@ impl Message {
 		field_header.data_size = (data_size + data_size_info) as u32;
 		self.header.data_size += (data_size + data_size_info) as u32;
 	}
+	
+	pub fn find_data<T: Flattenable<T>>(&self, name: &str, index: isize) -> Option<T> {
+		let field_index = match self.find_field(name, T::type_code()) {
+			Some(index) => index,
+			None => return None,
+		};
+		let field_header = &self.fields[index];
+		if index < 0 || index >= field_header.count {
+			return None;
+		}
+		
+		// TODO: get data
+		
+		return None;
+	}
 
 	fn hash_name(&self, name: &str) -> u32 {
 		let mut result: u32 = 0;
