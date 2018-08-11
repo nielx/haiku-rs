@@ -74,12 +74,7 @@ impl Message {
 			Ok(data) => println!("message: {:?}", data),
 			Err(error) => return None
 		}
-		let message = Message::unflatten(&result.unwrap().1.as_slice());
-		match message {
-			Some(msg) => println!("msg: {:?}", msg),
-			None => println!("cannot convert")
-		}
-		None
+		Message::unflatten(&result.unwrap().1.as_slice())
 	}
 	
 	pub fn add_data<T: Flattenable<T>>(&mut self, name: &str, data: &T) {
@@ -117,19 +112,40 @@ impl Message {
 		self.header.data_size += (data_size + data_size_info) as u32;
 	}
 	
-	pub fn find_data<T: Flattenable<T>>(&self, name: &str, index: isize) -> Option<T> {
+	pub fn find_data<T: Flattenable<T>>(&self, name: &str, index: usize) -> Option<T> {
 		let field_index = match self.find_field(name, T::type_code()) {
 			Some(index) => index,
 			None => return None,
 		};
-		let field_header = &self.fields[index];
-		if index < 0 || index >= field_header.count {
+		let field_header = &self.fields[field_index];
+		if index < 0 || index >= field_header.count as usize {
 			return None;
 		}
 		
-		// TODO: get data
+		if index != 0 {
+			// TODO: add multiple values
+			unimplemented!()
+		}
 		
-		return None;
+		if (field_header.flags & FIELD_FLAG_FIXED_SIZE) != 0 {
+			let item_size: usize = (field_header.data_size / field_header.count) as usize;
+			let offset: usize = (field_header.offset + field_header.name_length as u32) as usize + index * item_size;
+			T::unflatten(&self.data[offset..offset+item_size])
+		} else {
+			let mut offset: usize = (field_header.offset + field_header.name_length as u32) as usize;
+			let mut item_size: usize = 0;
+			for i in 0..index {
+				// this loop will set offset to the beginning of the data that we want to read.
+				// with index 0 it should at least skip the first 4 bytes (u32) that show the item size
+				offset += item_size;
+				item_size = u32::unflatten(&self.data[offset..offset+size_of::<u32>()]).unwrap() as usize;
+				offset += size_of::<u32>();
+			}
+			if item_size == 0 {
+				return None;
+			}
+			T::unflatten(&self.data[offset..offset+item_size])
+		}
 	}
 
 	fn hash_name(&self, name: &str) -> u32 {
@@ -154,11 +170,10 @@ impl Message {
 		
 		let hash = self.hash_name(name) % self.header.hash_table_size;
 		let mut next_index = self.header.hash_table[hash as usize];
-		
 		while next_index >= 0 {
 			let field = &self.fields[next_index as usize];
 			let start = field.offset as usize;
-			let end = (field.offset + field.name_length as u32) as usize;
+			let end = (field.offset + field.name_length as u32 - 1) as usize; // do not add trailing \0 to range
 			if *name.as_bytes() == self.data[start..end] {
 				if field.field_type == type_code || type_code == B_ANY_TYPE {
 					return Some(next_index as usize);
@@ -367,8 +382,10 @@ fn test_synchronous_message_sending() {
 	let uid = unsafe { getuid() };
 	app_data_message.add_data("user", &(uid as i32));
 	let port = Port::find("system:launch_daemon").unwrap();
-	let mut response_message = app_data_message.send_and_wait_for_reply(&port);
-	
+	let mut response_message = app_data_message.send_and_wait_for_reply(&port).unwrap();
+	println!("response_message: {:?}", response_message);
+	let port = response_message.find_data::<i32>("port", 0).unwrap();
+	println!("registrar port: {}", port);
 }
 
 #[test]
