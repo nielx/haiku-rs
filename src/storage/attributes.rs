@@ -11,29 +11,8 @@ use std::os::unix::io::AsRawFd;
 use std::path::Path;
 
 use haiku_sys::*;
+use support::flattenable::Flattenable;
 use libc::{c_int, off_t, size_t, ssize_t, DIR};
-
-/// Contents of a file attribute
-///
-/// File attributes are typed on BFS. This means that the file system is aware
-/// of the type of data that is stored in an attribute. This enum encapsulates
-/// some default data types that Haiku stores as attributes.
-pub enum AttributeContents {
-	UInt8(u8),
-	Int8(i8),
-	UInt16(u16),
-	Int16(i16),
-	UInt32(u32),
-	Int32(i32),
-	UInt64(u64),
-	Int64(i64),
-	Float(f32),
-	Double(f64),
-	Bool(bool),
-	Text(String),
-	Mimetype(String),
-	Unknown(u32, Vec<u8>),
-}
 
 /// A descriptor with the metadata of an attribute.
 pub struct AttributeDescriptor {
@@ -102,158 +81,27 @@ pub trait AttributeExt {
 	fn remove_attribute(&self, name: &str) -> io::Result<()>;
 	
 	// Higher-level functions
-	fn read_attribute(&self, attribute: &AttributeDescriptor) -> io::Result<AttributeContents> {
+	fn read_attribute<T: Flattenable<T>>(&self, attribute: &AttributeDescriptor) -> io::Result<T> {
 		let value = self.read_attribute_raw(&attribute.name, attribute.raw_attribute_type, 0);
 		if value.is_err() {
 			return Err(value.unwrap_err());
 		}
 		
-		let contents = value.unwrap();
-		// what about endianness?
-		match attribute.raw_attribute_type {
-			B_BOOL_TYPE => {
-				if contents[0] as u32 == 0 {
-					Ok(AttributeContents::Bool(false))
-				} else {
-					Ok(AttributeContents::Bool(true))
-				}
-			}
-			B_INT8_TYPE => {
-				if contents.len() == 1 {
-					Ok(AttributeContents::Int8(contents[0] as i8))
-				} else {
-					Err(io::Error::new(io::ErrorKind::InvalidData, "size mismatch for type i8"))
-				}
-			}
-			B_INT16_TYPE => {
-				if contents.len() == 2 {
-					let result = contents.iter().rev().fold(0, |acc, &b| (acc << 8) | b as i16);
-					Ok(AttributeContents::Int16(result))
-				} else {
-					Err(io::Error::new(io::ErrorKind::InvalidData, "size mismatch for type i16"))
-				}
-			}
-			B_INT32_TYPE => {
-				if contents.len() == 4 {
-					let result = contents.iter().rev().fold(0, |acc, &b| (acc << 8) | b as i32);
-					Ok(AttributeContents::Int32(result))
-				} else {
-					Err(io::Error::new(io::ErrorKind::InvalidData, "size mismatch for type i32"))
-				}
-			}
-			B_INT64_TYPE => {
-				if contents.len() == 8 {
-					let result = contents.iter().rev().fold(0, |acc, &b| (acc << 8) | b as i64);
-					Ok(AttributeContents::Int64(result))
-				} else {
-					Err(io::Error::new(io::ErrorKind::InvalidData, "size mismatch for type i64"))
-				}
-			}
-			B_UINT8_TYPE => {
-				if contents.len() == 1 {
-					Ok(AttributeContents::UInt8(contents[0] as u8))
-				} else {
-					Err(io::Error::new(io::ErrorKind::InvalidData, "size mismatch for type u8"))
-				}
-			}
-			B_UINT16_TYPE => {
-				if contents.len() == 2 {
-					let result = contents.iter().rev().fold(0, |acc, &b| (acc << 8) | b as u16);
-					Ok(AttributeContents::UInt16(result))
-				} else {
-					Err(io::Error::new(io::ErrorKind::InvalidData, "size mismatch for type u16"))
-				}
-			}
-			B_UINT32_TYPE => {
-				if contents.len() == 4 {
-					let result = contents.iter().rev().fold(0, |acc, &b| (acc << 8) | b as u32);
-					Ok(AttributeContents::UInt32(result))
-				} else {
-					Err(io::Error::new(io::ErrorKind::InvalidData, "size mismatch for type u32"))
-				}
-			}
-			B_UINT64_TYPE => {
-				if contents.len() == 8 {
-					let result = contents.iter().rev().fold(0, |acc, &b| (acc << 8) | b as u64);
-					Ok(AttributeContents::UInt64(result))
-				} else {
-					Err(io::Error::new(io::ErrorKind::InvalidData, "size mismatch for type u64"))
-				}
-			}
-			B_STRING_TYPE => {
-				if let Ok(text) = String::from_utf8(contents) {
-					Ok(AttributeContents::Text(text))
-				} else {
-					Err(io::Error::new(io::ErrorKind::InvalidData, "invalid string data"))
-				}
-			},
-			B_MIME_STRING_TYPE => {
-				if let Ok(text) = String::from_utf8(contents) {
-					Ok(AttributeContents::Mimetype(text))
-				} else {
-					Err(io::Error::new(io::ErrorKind::InvalidData, "invalid string data"))
-				}
-			},
-			_ => Ok(AttributeContents::Unknown(attribute.raw_attribute_type, contents))
+		if T::type_code() != attribute.raw_attribute_type {
+			return Err(io::Error::new(io::ErrorKind::InvalidData, "type mismatch"));
+		}
+		
+		let contents = T::unflatten(&value.unwrap());
+		
+		match contents {
+			Some(c) => Ok(c),
+			None => Err(io::Error::new(io::ErrorKind::InvalidData, "error unflattening data"))
 		}
 	}
 
-	fn write_attribute(&self, name: &str, value: &AttributeContents) -> io::Result<()> {
-		match *value {
-			AttributeContents::Int8(x) => {
-				try!(self.write_attribute_raw(name, B_INT8_TYPE, 0, &[x as u8]))
-			},
-			AttributeContents::Int16(x) => {
-				let data = unsafe { mem::transmute::<i16, [u8; 2]>(x) };
-				try!(self.write_attribute_raw(name, B_INT16_TYPE, 0, &data))
-			},
-			AttributeContents::Int32(x) => {
-				let data = unsafe { mem::transmute::<i32, [u8; 4]>(x) };
-				try!(self.write_attribute_raw(name, B_INT32_TYPE, 0, &data))
-			},
-			AttributeContents::Int64(x) => {
-				let data = unsafe { mem::transmute::<i64, [u8; 8]>(x) };
-				try!(self.write_attribute_raw(name, B_INT64_TYPE, 0, &data))
-			},
-			AttributeContents::UInt8(x) => {
-				try!(self.write_attribute_raw(name, B_UINT8_TYPE, 0, &[x]))
-			},
-			AttributeContents::UInt16(x) => {
-				let data = unsafe { mem::transmute::<u16, [u8; 2]>(x) };
-				try!(self.write_attribute_raw(name, B_UINT16_TYPE, 0, &data))
-			},
-			AttributeContents::UInt32(x) => {
-				let data = unsafe { mem::transmute::<u32, [u8; 4]>(x) };
-				try!(self.write_attribute_raw(name, B_UINT32_TYPE, 0, &data))
-			},
-			AttributeContents::UInt64(x) => {
-				let data = unsafe { mem::transmute::<u64, [u8; 8]>(x) };
-				try!(self.write_attribute_raw(name, B_UINT64_TYPE, 0, &data))
-			},
-			AttributeContents::Float(x) => {
-				let data = unsafe { mem::transmute::<f32, [u8; 4]>(x) };
-				try!(self.write_attribute_raw(name, B_FLOAT_TYPE, 0, &data))
-			},
-			AttributeContents::Double(x) => {
-				let data = unsafe { mem::transmute::<f64, [u8; 8]>(x) };
-				try!(self.write_attribute_raw(name, B_DOUBLE_TYPE, 0, &data))
-			},
-			AttributeContents::Bool(x) => {
-				let data: u8 = if x { 1 } else { 0 };
-				try!(self.write_attribute_raw(name, B_DOUBLE_TYPE, 0, &[data]))
-			},
-			AttributeContents::Text(ref x) => {
-				let data = CString::new(x.clone()).unwrap();
-				try!(self.write_attribute_raw(name, B_STRING_TYPE, 0, data.to_bytes()))
-			},
-			AttributeContents::Mimetype(ref x) => {
-				let data = CString::new(x.clone()).unwrap();
-				try!(self.write_attribute_raw(name, B_MIME_STRING_TYPE, 0, data.to_bytes()))
-			},
-			AttributeContents::Unknown(t, ref data) => {
-				try!(self.write_attribute_raw(name, t, 0, data))
-			},			
-		}
+	fn write_attribute<T: Flattenable<T>>(&self, name: &str, value: &T) -> io::Result<()> {
+		let data = value.flatten();
+		try!(self.write_attribute_raw(name, T::type_code(), 0, &data));
 		Ok(())
 	}
 }
@@ -371,17 +219,13 @@ fn test_attribute_ext() {
 	
 	let path = Path::new("/boot/system/apps/StyledEdit");
 	let file = File::open(&path).unwrap();
-	let attribute_iterator = file.iter_attributes().unwrap();
-	for x in attribute_iterator {
-		if let Ok(attribute) = x {
-			println!("{}: type {}", attribute.name, attribute.raw_attribute_type);
-		} else {
-			println!("Breaking loop because of error");
-			break;
-		}
-	}
+	let mut attribute_iterator = file.iter_attributes().unwrap();
+	let attribute_descriptor = attribute_iterator.find(|attribute| attribute.as_ref().unwrap().name == "SYS:NAME").unwrap();
 	
 	let attribute_data_raw = file.read_attribute_raw("SYS:NAME", 0, 0).unwrap();
-	let attribute_data = String::from_utf8(attribute_data_raw).unwrap();
-	println!("SYS:NAME for StyledEdit: {}", attribute_data);
+	let attribute_data_cstring = CStr::from_bytes_with_nul(attribute_data_raw.as_slice()).unwrap();
+	let attribute_data = attribute_data_cstring.to_str().unwrap();
+	
+	let attribute_data_higher_api = file.read_attribute::<String>(&attribute_descriptor.unwrap()).unwrap();
+	assert_eq!(attribute_data, attribute_data_higher_api);
 }
