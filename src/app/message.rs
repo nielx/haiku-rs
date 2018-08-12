@@ -68,11 +68,11 @@ impl Message {
 		self.header.flags &= !MESSAGE_FLAG_REPLY_DONE;
 		
 		let flattened_message = self.flatten();
-		target_port.write(B_MESSAGE_TYPE as i32, &flattened_message);
+		target_port.write(B_MESSAGE_TYPE as i32, &flattened_message).ok();
 		let result = p.read();
 		match &result {
 			Ok(data) => println!("message: {:?}", data),
-			Err(error) => return None
+			Err(_) => return None
 		}
 		Message::unflatten(&result.unwrap().1.as_slice())
 	}
@@ -85,11 +85,11 @@ impl Message {
 		
 		let result = self.find_field(name, T::type_code());
 		let field_index = match result {
-			Some(index) => unimplemented!("We did not implement multiple values"),
+			Some(_) => unimplemented!("We did not implement multiple values"),
 			None => self.add_field(name, T::type_code(), T::is_fixed_size())
 		};
 		
-		let mut field_header = self.fields.get_mut(field_index).unwrap();
+		let field_header = self.fields.get_mut(field_index).unwrap();
 		// Copy the data
 		// TODO: we really want to add a flatten_into function to stop the
 		// double copy
@@ -118,7 +118,7 @@ impl Message {
 			None => return None,
 		};
 		let field_header = &self.fields[field_index];
-		if index < 0 || index >= field_header.count as usize {
+		if index >= field_header.count as usize {
 			return None;
 		}
 		
@@ -134,7 +134,7 @@ impl Message {
 		} else {
 			let mut offset: usize = (field_header.offset + field_header.name_length as u32) as usize;
 			let mut item_size: usize = 0;
-			for i in 0..index {
+			for _ in 0..index {
 				// this loop will set offset to the beginning of the data that we want to read.
 				// with index 0 it should at least skip the first 4 bytes (u32) that show the item size
 				offset += item_size;
@@ -297,7 +297,7 @@ impl Flattenable<Message> for Message {
 			return None;
 		}
 
-		let mut data_ptr: *const u8 = buffer.as_ptr();
+		let data_ptr: *const u8 = buffer.as_ptr();
 		let header_ptr: *const message_header = data_ptr as *const _;
 		let header_ref: &message_header = unsafe { &*header_ptr };
 		
@@ -316,7 +316,7 @@ impl Flattenable<Message> for Message {
 		}
 		
 		let mut offset = size_of::<message_header>();
-		for i in 0..msg.header.field_count {
+		for _ in 0..msg.header.field_count {
 			let (_, field_header_slice) = buffer.split_at(offset);
 			let field_header_ptr: *const field_header = field_header_slice.as_ptr() as *const _;
 			let field_header_ref: &field_header = unsafe {&*field_header_ptr };
