@@ -104,7 +104,31 @@ pub mod ports {
 				})
 			}
 		}
-		
+
+		/// Construct a borrowed port from id
+		///
+		/// If the port exists, this function will return a borrowed `Port`
+		/// object. This means that the port will not be deleted when the
+		/// object goes out of scope.
+		pub fn from_id(id: port_id) -> Option<Port> {
+			if id < 0 {
+				// Or should we panic?
+				return None;
+			}
+			let mut info: port_info = unsafe { mem::zeroed() };
+			let status = unsafe {
+				get_port_info(id, &mut info)
+			};
+			if status == 0 {
+				Some(Port {
+					port: id,
+					owned: false
+				})
+			} else {
+				None
+			}
+		}
+
 		/// Write data to the port
 		///
 		/// The data is identified by a `type_code` and is sent as an array of
