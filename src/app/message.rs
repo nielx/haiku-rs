@@ -22,7 +22,7 @@ use ::support::flattenable::Flattenable;
 pub struct Message {
 	/// A 32 bit integer that gives a signature to the message
 	pub what: u32,
-	header: message_header,
+	pub(crate) header: message_header,
 	fields: Vec<field_header>,
 	data: Vec<u8>
 }
@@ -51,32 +51,7 @@ impl Message {
 			data: Vec::new()
 		}
 	}
-	
-	pub fn send_and_wait_for_reply(&mut self, target_port: &Port) -> Option<Message> {
-		// Create a reply port (and maybe cache)
-		let p: Port = Port::create("tmp_reply_port", 1).unwrap();
-		let info = p.get_info().unwrap();
-		
-		// Fill out header info
-		self.header.target = B_PREFERRED_TOKEN; //TODO: allow other options
-		self.header.reply_port = p.get_port_id();
-		self.header.reply_target = B_NULL_TOKEN;
-		self.header.reply_team = info.team.get_team_id();
-		self.header.flags |= MESSAGE_FLAG_WAS_DELIVERED;
-		
-		self.header.flags |= MESSAGE_FLAG_REPLY_REQUIRED;
-		self.header.flags &= !MESSAGE_FLAG_REPLY_DONE;
-		
-		let flattened_message = self.flatten();
-		target_port.write(B_MESSAGE_TYPE as i32, &flattened_message).ok();
-		let result = p.read();
-		match &result {
-			Ok(data) => println!("message: {:?}", data),
-			Err(_) => return None
-		}
-		Message::unflatten(&result.unwrap().1.as_slice())
-	}
-	
+
 	pub fn add_data<T: Flattenable<T>>(&mut self, name: &str, data: &T) {
 		if self.header.message_area > 0 {
 			// Todo: implement support for messages with areas
@@ -369,23 +344,6 @@ fn test_basic_message() {
 	let flattened_msg = msg.flatten();
 	let unflattened_msg = Message::unflatten(flattened_msg.as_slice()).unwrap();
 	assert_eq!(unflattened_msg.what, msg_constant);
-}
-
-#[test]
-fn test_synchronous_message_sending() {
-	use kernel::ports::Port;
-	use libc::getuid;
-	// B_GET_LAUNCH_DATA is defined as 'lnda' see LaunchDaemonDefs.h
-	let constant: u32 = ((('l' as u32) << 24) + (('n' as u32) << 16) + (('d' as u32) << 8) + ('a' as u32));
-	let mut app_data_message = Message::new(constant);
-	app_data_message.add_data("name", &String::from("application/x-vnd.haiku-registrar"));
-	let uid = unsafe { getuid() };
-	app_data_message.add_data("user", &(uid as i32));
-	let port = Port::find("system:launch_daemon").unwrap();
-	let mut response_message = app_data_message.send_and_wait_for_reply(&port).unwrap();
-	println!("response_message: {:?}", response_message);
-	let port = response_message.find_data::<i32>("port", 0).unwrap();
-	println!("registrar port: {}", port);
 }
 
 #[test]
