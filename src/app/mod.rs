@@ -5,3 +5,4 @@
 
 pub mod message;
 pub mod messenger;
+pub mod roster;

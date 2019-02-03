@@ -16,8 +16,12 @@
 //! This crate is very much work in progress.
 
 
+#[macro_use]
 extern crate haiku_sys;
+#[macro_use]
+extern crate lazy_static;
 extern crate libc;
+
 
 pub mod app;
 pub mod kernel;

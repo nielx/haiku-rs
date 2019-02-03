@@ -6,7 +6,7 @@
 use std::time::Duration;
 
 use haiku_sys::message::*;
-use haiku_sys::{B_ANY_TYPE, B_MESSAGE_TYPE};
+use haiku_sys::{B_MESSAGE_TYPE, port_id};
 
 use ::app::message::Message;
 use ::kernel::ports::Port;
@@ -20,7 +20,11 @@ pub struct Messenger {
 
 impl Messenger {
 	pub fn from_port(port: &Port) -> Option<Messenger> {
-		let mut result = Port::from_id(port.get_port_id());
+		return Messenger::from_port_id(port.get_port_id());
+	}
+	
+	pub fn from_port_id(port: port_id) -> Option<Messenger> {
+		let mut result = Port::from_id(port);
 		match result {
 			Some(borrowed_port) => Some(Messenger{ port: borrowed_port }),
 			None => None
