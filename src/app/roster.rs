@@ -42,6 +42,33 @@ pub struct Roster {
 }
 
 
+impl Roster {
+	pub fn get_app_list(&self) -> Option<Vec<Team>> {
+		let request = Message::new(haiku_constant!('r','g','a','l'));
+		let response = self.messenger.send_and_wait_for_reply(request);
+
+		if response.is_none() {
+			return None;
+		}
+
+		let response = response.unwrap();
+		if response.what == haiku_constant!('r','g','s','u') {
+			let count = match response.get_info("teams") {
+				Some(info) => info.1,
+				None => return None
+			};
+			let mut result: Vec<Team> = Vec::with_capacity(count);
+			for index in 0..count {
+				let team = response.find_data::<i32>("teams", index).unwrap();
+				result.push(Team::from(team).unwrap());
+			}
+			return Some(result);
+		}
+		return None;
+	}
+}
+
+
 lazy_static! {
 	pub static ref ROSTER: Roster = {
 		// Get a connection with the registrar
@@ -49,4 +76,10 @@ lazy_static! {
 		Roster{ messenger: Messenger::from_port_id(roster_data.0.get_port_id()).unwrap() }
 	};
 }
-		
+
+
+#[test]
+fn test_roster_get_app_list() {
+	let app_list = ROSTER.get_app_list().unwrap();
+	assert!(app_list.len() != 0);
+}

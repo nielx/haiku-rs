@@ -97,11 +97,6 @@ impl Message {
 			return None;
 		}
 		
-		if index != 0 {
-			// TODO: add multiple values
-			unimplemented!()
-		}
-		
 		if (field_header.flags & FIELD_FLAG_FIXED_SIZE) != 0 {
 			let item_size: usize = (field_header.data_size / field_header.count) as usize;
 			let offset: usize = (field_header.offset + field_header.name_length as u32) as usize + index * item_size;
@@ -122,6 +117,19 @@ impl Message {
 			T::unflatten(&self.data[offset..offset+item_size])
 		}
 	}
+	
+	/// Retrieve the type, the number of items and whether or not it is fixed data
+	///
+	/// This method returns a tuple consisting of the type_code, the number of items
+	/// and whether or not the data size is fixed, or None if there is no data.
+	pub fn get_info(&self, name: &str) -> Option<(u32, usize, bool)> {
+		let field_index = match self.find_field(name, B_ANY_TYPE) {
+			Some(index) => index,
+			None => return None
+		};
+		let field_header = self.fields.get(field_index).unwrap();
+		Some((field_header.field_type, field_header.count as usize, (field_header.flags & FIELD_FLAG_FIXED_SIZE) != 0))
+	}
 
 	fn hash_name(&self, name: &str) -> u32 {
 		let mut result: u32 = 0;
@@ -135,6 +143,7 @@ impl Message {
 	}
 
 	fn find_field(&self, name: &str, type_code: u32) -> Option<usize> {
+		println!("HERE");
 		if name.len() == 0 {
 			return None
 		}

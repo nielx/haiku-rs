@@ -31,7 +31,7 @@ impl Messenger {
 		}
 	}
 	
-	pub fn send_and_wait_for_reply(&mut self, mut message: Message) -> Option<Message> {
+	pub fn send_and_wait_for_reply(&self, mut message: Message) -> Option<Message> {
 		// Create a reply port (TODO: maybe cache?)
 		let p: Port = Port::create("tmp_reply_port", 1).unwrap();
 		let info = p.get_info().unwrap();
