@@ -143,7 +143,6 @@ impl Message {
 	}
 
 	fn find_field(&self, name: &str, type_code: u32) -> Option<usize> {
-		println!("HERE");
 		if name.len() == 0 {
 			return None
 		}

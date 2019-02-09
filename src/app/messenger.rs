@@ -49,9 +49,8 @@ impl Messenger {
 		let flattened_message = message.flatten();
 		self.port.write(B_MESSAGE_TYPE as i32, &flattened_message).ok();
 		let result = p.read();
-		match &result {
-			Ok(data) => println!("message: {:?}", data),
-			Err(_) => return None
+		if result.is_err() {
+			return None;
 		}
 		Message::unflatten(&result.unwrap().1.as_slice())
 	}
