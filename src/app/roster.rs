@@ -1,6 +1,7 @@
 use libc::{dev_t, getuid, ino_t};
 use haiku_sys::{B_MIME_TYPE_LENGTH, B_FILE_NAME_LENGTH, port_id, team_id, thread_id};
 use std::{mem, ptr};
+use std::ffi::CStr;
 
 use ::app::message::Message;
 use ::app::messenger::Messenger;
@@ -81,8 +82,8 @@ impl Roster {
 		
 		let response = response.unwrap();
 		if response.what == haiku_constant!('r','g','s','u') {
-			let app_info = response.find_data::<AppInfo>("app_info", 0).unwrap();
-			return Some(app_info);
+			let flat_app_info = response.find_data::<FlatAppInfo>("app_info", 0).unwrap();
+			return Some(flat_app_info.to_app_info());
 		}
 		return None;
 	}
@@ -92,8 +93,12 @@ impl Roster {
 const B_REG_APP_INFO_TYPE: u32 = haiku_constant!('r','g','a','i');
 
 
+// It is not possible to safely get references from packed structs. Therefore
+// we have a private FlatAppInfo to read data from messages, and a public
+// AppInfo that can be used by consumers whichever way they want. See #46043
+// on the rust-lang project
 #[repr(packed)]
-pub struct AppInfo {
+struct FlatAppInfo {
 	pub thread: thread_id,
 	pub team: team_id,
 	pub port: port_id,
@@ -105,7 +110,30 @@ pub struct AppInfo {
 }
 
 
-impl Flattenable<AppInfo> for AppInfo {
+impl FlatAppInfo {
+	fn to_app_info(&self) -> AppInfo {
+		let signature = match CStr::from_bytes_with_nul(&self.signature) {
+			Ok(value) => value.to_string_lossy().into_owned(),
+			Err(_) => String::new()
+		};
+		let ref_name = match CStr::from_bytes_with_nul(&self.ref_name) {
+			Ok(value) => value.to_string_lossy().into_owned(),
+			Err(_) => String::new()
+		};
+		AppInfo {
+			thread: self.thread,
+			team: self.team,
+			port: self.port,
+			flags: self.flags,
+			ref_device: self.ref_device,
+			ref_directory: self.ref_directory,
+			ref_name: ref_name,
+			signature: signature 
+		}
+	}
+}
+
+impl Flattenable<FlatAppInfo> for FlatAppInfo {
 	fn type_code() -> u32 {
 		B_REG_APP_INFO_TYPE
 	}
@@ -115,20 +143,33 @@ impl Flattenable<AppInfo> for AppInfo {
 	}
 
 	fn flattened_size(&self) -> usize {
-		mem::size_of::<AppInfo>()
+		mem::size_of::<FlatAppInfo>()
 	}
 
 	fn flatten(&self) -> Vec<u8> {
 		unimplemented!();
 	}
 
-	fn unflatten(buffer: &[u8]) -> Option<AppInfo> {
-		if mem::size_of::<AppInfo>() != buffer.len() {
+	fn unflatten(buffer: &[u8]) -> Option<FlatAppInfo> {
+		if mem::size_of::<FlatAppInfo>() != buffer.len() {
 			return None;
 		}
-		let app_info: AppInfo = unsafe { ptr::read(buffer.as_ptr() as *const _) };
+		let app_info: FlatAppInfo = unsafe { ptr::read(buffer.as_ptr() as *const _) };
 		Some(app_info)
 	}
+}
+
+
+pub struct AppInfo {
+	pub thread: thread_id,
+	pub team: team_id,
+	pub port: port_id,
+	pub flags: u32,
+	// TODO: the fields of ref_ should become an entry_ref, when we support that
+	pub ref_device: dev_t,
+	pub ref_directory: ino_t,
+	pub ref_name: String,
+	signature: String,
 }
 
 
