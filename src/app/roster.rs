@@ -1,7 +1,7 @@
 use libc::{dev_t, getuid, ino_t};
 use haiku_sys::{B_MIME_TYPE_LENGTH, B_FILE_NAME_LENGTH, port_id, team_id, thread_id};
 use std::{mem, ptr};
-use std::ffi::CStr;
+use std::str::{Utf8Error, from_utf8};
 
 use ::app::message::Message;
 use ::app::messenger::Messenger;
@@ -112,12 +112,12 @@ struct FlatAppInfo {
 
 impl FlatAppInfo {
 	fn to_app_info(&self) -> AppInfo {
-		let signature = match CStr::from_bytes_with_nul(&self.signature) {
-			Ok(value) => value.to_string_lossy().into_owned(),
+		let signature = match FlatAppInfo::str_from_array_with_or_without_nul(&self.signature) {
+			Ok(value) => String::from(value),
 			Err(_) => String::new()
 		};
-		let ref_name = match CStr::from_bytes_with_nul(&self.ref_name) {
-			Ok(value) => value.to_string_lossy().into_owned(),
+		let ref_name = match FlatAppInfo::str_from_array_with_or_without_nul(&self.ref_name) {
+			Ok(value) => String::from(value),
 			Err(_) => String::new()
 		};
 		AppInfo {
@@ -130,6 +130,15 @@ impl FlatAppInfo {
 			ref_name: ref_name,
 			signature: signature 
 		}
+	}
+	
+	//Graciously borrowed from stackoverflow
+	fn str_from_array_with_or_without_nul(buf: &[u8]) -> Result<&str, Utf8Error> {
+		let len = buf.iter()
+			.enumerate()
+			.find(|&(_, &byte)| byte == 0)
+			.map_or_else(|| buf.len(), |(len, _)| len);
+		from_utf8(&buf[..len])
 	}
 }
 
@@ -169,7 +178,7 @@ pub struct AppInfo {
 	pub ref_device: dev_t,
 	pub ref_directory: ino_t,
 	pub ref_name: String,
-	signature: String,
+	pub signature: String,
 }
 
 
