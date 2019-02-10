@@ -1,9 +1,12 @@
-use libc::getuid;
+use libc::{dev_t, getuid, ino_t};
+use haiku_sys::{B_MIME_TYPE_LENGTH, B_FILE_NAME_LENGTH, port_id, team_id, thread_id};
+use std::{mem, ptr};
 
 use ::app::message::Message;
 use ::app::messenger::Messenger;
 use ::kernel::ports::Port;
 use ::kernel::teams::Team;
+use ::support::flattenable::Flattenable;
 
 struct LaunchRoster {
 	messenger: Messenger
@@ -65,6 +68,66 @@ impl Roster {
 			return Some(result);
 		}
 		return None;
+	}
+	
+	pub fn get_running_app_info(&self, team: &Team) -> Option<AppInfo> {
+		let mut request = Message::new(haiku_constant!('r','g','a','i'));
+		request.add_data("team", &team.get_team_id());
+		let response = self.messenger.send_and_wait_for_reply(request);
+		
+		if response.is_none() {
+			return None;
+		}
+		
+		let response = response.unwrap();
+		if response.what == haiku_constant!('r','g','s','u') {
+			let app_info = response.find_data::<AppInfo>("app_info", 0).unwrap();
+			return Some(app_info);
+		}
+		return None;
+	}
+}
+
+
+const B_REG_APP_INFO_TYPE: u32 = haiku_constant!('r','g','a','i');
+
+
+#[repr(packed)]
+pub struct AppInfo {
+	pub thread: thread_id,
+	pub team: team_id,
+	pub port: port_id,
+	pub flags: u32,
+	pub ref_device: dev_t,
+	pub ref_directory: ino_t,
+	signature: [u8; B_MIME_TYPE_LENGTH],
+	ref_name: [u8; B_FILE_NAME_LENGTH + 1]
+}
+
+
+impl Flattenable<AppInfo> for AppInfo {
+	fn type_code() -> u32 {
+		B_REG_APP_INFO_TYPE
+	}
+
+	fn is_fixed_size() -> bool {
+		true
+	}
+
+	fn flattened_size(&self) -> usize {
+		mem::size_of::<AppInfo>()
+	}
+
+	fn flatten(&self) -> Vec<u8> {
+		unimplemented!();
+	}
+
+	fn unflatten(buffer: &[u8]) -> Option<AppInfo> {
+		if mem::size_of::<AppInfo>() != buffer.len() {
+			return None;
+		}
+		let app_info: AppInfo = unsafe { ptr::read(buffer.as_ptr() as *const _) };
+		Some(app_info)
 	}
 }
 

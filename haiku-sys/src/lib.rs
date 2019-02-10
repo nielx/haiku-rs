@@ -6,7 +6,7 @@
 #![allow(non_camel_case_types)]
 
 extern crate libc;
-use libc::{c_int, c_char, DIR, dirent, off_t, size_t, ssize_t};
+use libc::{c_int, c_char, DIR, dirent, FILENAME_MAX, off_t, PATH_MAX, size_t, ssize_t};
 use std::mem;
 
 #[macro_export]
@@ -152,6 +152,15 @@ pub const B_MIME_STRING_TYPE: u32 = haiku_constant!('M','I','M','S');
 
 // SupportDefs.h
 pub type type_code = u32;
+
+// StorageDefs.h
+pub const B_DEV_NAME_LENGTH: usize = 128;
+pub const B_FILE_NAME_LENGTH: usize = FILENAME_MAX as usize;
+pub const B_PATH_NAME_LENGTH: usize = PATH_MAX as usize;
+pub const B_ATTR_NAME_LENGTH: usize = B_FILE_NAME_LENGTH - 1;
+pub const B_MIME_TYPE_LENGTH: usize = B_ATTR_NAME_LENGTH - 15;
+// Todo: SYMLOOP_MAX, needs to come from libc
+
 
 #[cfg(test)]
 mod tests {
