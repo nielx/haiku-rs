@@ -3,8 +3,6 @@
 // All rights reserved. Distributed under the terms of the MIT License.
 //
 
-use std::time::Duration;
-
 use haiku_sys::message::*;
 use haiku_sys::{B_MESSAGE_TYPE, port_id};
 
@@ -24,7 +22,7 @@ impl Messenger {
 	}
 	
 	pub fn from_port_id(port: port_id) -> Option<Messenger> {
-		let mut result = Port::from_id(port);
+		let result = Port::from_id(port);
 		match result {
 			Some(borrowed_port) => Some(Messenger{ port: borrowed_port }),
 			None => None

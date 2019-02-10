@@ -12,7 +12,6 @@ use std::str;
 use haiku_sys::{B_ANY_TYPE, B_MESSAGE_TYPE};
 use haiku_sys::message::*;
 
-use ::kernel::ports::Port;
 use ::support::flattenable::Flattenable;
 
 /// A rustean representation of a BMessage
