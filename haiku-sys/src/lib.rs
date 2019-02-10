@@ -162,6 +162,218 @@ pub const B_MIME_TYPE_LENGTH: usize = B_ATTR_NAME_LENGTH - 15;
 // Todo: SYMLOOP_MAX, needs to come from libc
 
 
+// Errors.h
+pub mod errors {
+	use std;
+	use libc::{EOVERFLOW, E2BIG, EFBIG, ERANGE, ENODEV, EOPNOTSUPP};
+	use ::status_t;
+	
+	pub const B_GENERAL_ERROR_BASE: status_t = std::i32::MIN;
+	pub const B_OS_ERROR_BASE: status_t = B_GENERAL_ERROR_BASE + 0x1000;
+	pub const B_APP_ERROR_BASE: status_t = B_GENERAL_ERROR_BASE + 0x2000;
+	pub const B_INTERFACE_ERROR_BASE: status_t = B_GENERAL_ERROR_BASE + 0x3000;
+	pub const B_MEDIA_ERROR_BASE: status_t = B_GENERAL_ERROR_BASE + 0x4000;
+	pub const B_TRANSLATION_ERROR_BASE: status_t = B_GENERAL_ERROR_BASE + 0x4800;
+	pub const B_MIDI_ERROR_BASE: status_t = B_GENERAL_ERROR_BASE + 0x5000;
+	pub const B_STORAGE_ERROR_BASE: status_t = B_GENERAL_ERROR_BASE + 0x6000;
+	pub const B_POSIX_ERROR_BASE: status_t = B_GENERAL_ERROR_BASE + 0x7000;
+	pub const B_MAIL_ERROR_BASE: status_t = B_GENERAL_ERROR_BASE + 0x8000;
+	pub const B_PRINT_ERROR_BASE: status_t = B_GENERAL_ERROR_BASE + 0x9000;
+	pub const B_DEVICE_ERROR_BASE: status_t = B_GENERAL_ERROR_BASE + 0xa000;
+	pub const B_ERRORS_END: status_t = B_GENERAL_ERROR_BASE + 0xffff;
+
+	// General errors
+	pub const B_NO_MEMORY: status_t = B_GENERAL_ERROR_BASE + 0;
+	pub const B_IO_ERROR: status_t = B_GENERAL_ERROR_BASE + 1;
+	pub const B_PERMISSION_DENIED: status_t = B_GENERAL_ERROR_BASE + 2;
+	pub const B_BAD_INDEX: status_t = B_GENERAL_ERROR_BASE + 3;
+	pub const B_BAD_TYPE: status_t = B_GENERAL_ERROR_BASE + 4;
+	pub const B_BAD_VALUE: status_t = B_GENERAL_ERROR_BASE + 5;
+	pub const B_MISMATCHED_VALUES: status_t = B_GENERAL_ERROR_BASE + 6;
+	pub const B_NAME_NOT_FOUND: status_t = B_GENERAL_ERROR_BASE + 7;
+	pub const B_NAME_IN_USE: status_t = B_GENERAL_ERROR_BASE + 8;
+	pub const B_TIMED_OUT: status_t = B_GENERAL_ERROR_BASE + 9;
+	pub const B_INTERRUPED: status_t = B_GENERAL_ERROR_BASE + 10;
+	pub const B_WOULD_BLOCK: status_t = B_GENERAL_ERROR_BASE + 11;
+	pub const B_CANCELED: status_t = B_GENERAL_ERROR_BASE + 12;
+	pub const B_NO_INIT: status_t = B_GENERAL_ERROR_BASE + 13;
+	pub const B_NOT_INITIALIZED: status_t = B_GENERAL_ERROR_BASE + 13;
+	pub const B_BUSY: status_t = B_GENERAL_ERROR_BASE + 14;
+	pub const B_NOT_ALLOWED: status_t = B_GENERAL_ERROR_BASE + 15;
+	pub const B_BAD_DATA: status_t = B_GENERAL_ERROR_BASE + 16;
+	pub const B_DONT_DO_THAT: status_t = B_GENERAL_ERROR_BASE + 17;
+
+	pub const B_ERROR: status_t = -1;
+	pub const B_OK: status_t = 0;
+	pub const B_NO_ERROR: status_t = 0;
+
+	// Kernel kit errors
+	pub const B_BAD_SEM_ID: status_t = B_OS_ERROR_BASE + 0;
+	pub const B_NO_MORE_SEMS: status_t = B_OS_ERROR_BASE + 1;
+
+	pub const B_BAD_THREAD_ID: status_t = B_OS_ERROR_BASE + 0x100;
+	pub const B_NO_MORE_THREADS: status_t = B_OS_ERROR_BASE + 0x101;
+	pub const B_BAD_THREAD_STATE: status_t = B_OS_ERROR_BASE + 0x012;
+	pub const B_BAD_TEAM_ID: status_t = B_OS_ERROR_BASE + 0x103;
+	pub const B_NO_MORE_TEAMS: status_t = B_OS_ERROR_BASE + 0x104;
+
+	pub const B_BAD_PORT_ID: status_t = B_OS_ERROR_BASE + 0x200;
+	pub const B_NO_MORE_PORTS: status_t = B_OS_ERROR_BASE + 0x201;
+
+	pub const B_BAD_IMAGE_ID: status_t = B_OS_ERROR_BASE + 0x300;
+	pub const B_BAD_ADDRESS: status_t = B_OS_ERROR_BASE + 0x301;
+	pub const B_NOT_AN_EXECUTABLE: status_t = B_OS_ERROR_BASE + 0x302;
+	pub const B_MISSING_LIBRARY: status_t = B_OS_ERROR_BASE + 0x303;
+	pub const B_MISSING_SYMBOL: status_t = B_OS_ERROR_BASE + 0x304;
+	pub const B_UNKNOWN_EXECUTABLE: status_t = B_OS_ERROR_BASE + 0x305;
+	pub const B_LEGACY_EXECUTABLE: status_t = B_OS_ERROR_BASE + 0x306;
+
+	pub const B_DEBUGGER_ALREADY_INSTALLED: status_t = B_OS_ERROR_BASE + 0x400;
+
+	// Application kit errors
+	pub const B_BAD_REPLY: status_t = B_APP_ERROR_BASE + 0;
+	pub const B_DUPLICATE_REPLY: status_t = B_APP_ERROR_BASE + 1;
+	pub const B_MESSAGE_TO_SELF: status_t = B_APP_ERROR_BASE + 2;
+	pub const B_BAD_HANDLER: status_t = B_APP_ERROR_BASE + 3;
+	pub const B_ALREADY_RUNNING: status_t = B_APP_ERROR_BASE + 4;
+	pub const B_LAUNCH_FAILED: status_t = B_APP_ERROR_BASE + 5;
+	pub const B_AMBIGUOUS_APP_LAUNCH: status_t = B_APP_ERROR_BASE + 6;
+	pub const B_UNKNOWN_MIME_TYPE: status_t = B_APP_ERROR_BASE + 7;
+	pub const B_BAD_SCRIPT_SYNTAX: status_t = B_APP_ERROR_BASE + 8;
+	pub const B_LAUNCH_FAILED_NO_RESOLVE_LINK: status_t = B_APP_ERROR_BASE + 9;
+	pub const B_LAUNCH_FAILED_EXECUTABLE: status_t = B_APP_ERROR_BASE + 10;
+	pub const B_LAUNCH_FAILED_APP_NOT_FOUND: status_t = B_APP_ERROR_BASE + 11;
+	pub const B_LAUNCH_FAILED_APP_IN_TRASH: status_t = B_APP_ERROR_BASE + 12;
+	pub const B_LAUNCH_FAILED_NO_PREFERRED_APP: status_t = B_APP_ERROR_BASE + 13;
+	pub const B_LAUNCH_FAILED_FILES_APP_NOT_FOUND: status_t = B_APP_ERROR_BASE + 14;
+	pub const B_BAD_MIME_SNIFFER_RULE: status_t = B_APP_ERROR_BASE + 15;
+	pub const B_NOT_A_MESSAGE: status_t = B_APP_ERROR_BASE + 16;
+	pub const B_SHUTDOWN_CANCELLED: status_t = B_APP_ERROR_BASE + 17;
+	pub const B_SHUTTING_DOWN: status_t = B_APP_ERROR_BASE + 18;
+
+	// Storage kit errors
+	pub const B_FILE_ERROR: status_t = B_STORAGE_ERROR_BASE + 0;
+	pub const B_FILE_NOT_FOUND: status_t = B_STORAGE_ERROR_BASE + 1;
+	pub const B_FILE_EXISTS: status_t = B_STORAGE_ERROR_BASE + 2;
+	pub const B_ENTRY_NOT_FOUND: status_t = B_STORAGE_ERROR_BASE + 3;
+	pub const B_NAME_TOO_LONG: status_t = B_STORAGE_ERROR_BASE + 4;
+	pub const B_NOT_A_DIRECTORY: status_t = B_STORAGE_ERROR_BASE + 5;
+	pub const B_DIRECTORY_NOT_EMPTY: status_t = B_STORAGE_ERROR_BASE + 6;
+	pub const B_DEVICE_FULL: status_t = B_STORAGE_ERROR_BASE + 7;
+	pub const B_READ_ONLY_DEVICE: status_t = B_STORAGE_ERROR_BASE + 8;
+	pub const B_IS_A_DIRECTORY: status_t = B_STORAGE_ERROR_BASE + 9;
+	pub const B_NO_MORE_FDS: status_t = B_STORAGE_ERROR_BASE + 10;
+	pub const B_CROSS_DEVICE_LINK: status_t = B_STORAGE_ERROR_BASE + 11;
+	pub const B_LINK_LIMIT: status_t = B_STORAGE_ERROR_BASE + 12;
+	pub const B_BUSTED_PIPE: status_t = B_STORAGE_ERROR_BASE + 13;
+	pub const B_UNSUPPORTED: status_t = B_STORAGE_ERROR_BASE + 14;
+	pub const B_PARTITION_TOO_SMALL: status_t = B_STORAGE_ERROR_BASE + 15;
+	pub const B_PARTIAL_READ: status_t = B_STORAGE_ERROR_BASE + 16;
+	pub const B_PARTIAL_WRITE: status_t = B_STORAGE_ERROR_BASE + 17;
+
+	// Mapped posix errors
+	pub const B_BUFFER_OVERFLOW: status_t = EOVERFLOW;
+	pub const B_TOO_MANY_ARGS: status_t = E2BIG;
+	pub const B_FILE_TOO_LARGE: status_t = EFBIG;
+	pub const B_RESULT_NOT_REPRESENTABLE: status_t = ERANGE;
+	pub const B_DEVICE_NOT_FOUND: status_t = ENODEV;
+	pub const B_NOT_SUPPORTED: status_t = EOPNOTSUPP;
+
+	// Media kit errors
+	pub const B_STREAM_NOT_FOUND: status_t = B_MEDIA_ERROR_BASE + 0;
+	pub const B_SERVER_NOT_FOUND: status_t = B_MEDIA_ERROR_BASE + 1;
+	pub const B_RESOURCE_NOT_FOUND: status_t = B_MEDIA_ERROR_BASE + 2;
+	pub const B_RESOURCE_UNAVAILABLE: status_t = B_MEDIA_ERROR_BASE + 3;
+	pub const B_BAD_SUBSCRIBER: status_t = B_MEDIA_ERROR_BASE + 4;
+	pub const B_SUBSCRIBER_NOT_ENTERED: status_t = B_MEDIA_ERROR_BASE + 5;
+	pub const B_BUFFER_NOT_AVAILABLE: status_t = B_MEDIA_ERROR_BASE + 6;
+	pub const B_LAST_BUFFER_ERROR: status_t = B_MEDIA_ERROR_BASE + 7;
+
+	pub const B_MEDIA_SYSTEM_FAILURE: status_t = B_MEDIA_ERROR_BASE + 100;
+	pub const B_MEDIA_BAD_NODE: status_t = B_MEDIA_ERROR_BASE + 101;
+	pub const B_MEDIA_NODE_BUSY: status_t = B_MEDIA_ERROR_BASE + 102;
+	pub const B_MEDIA_BAD_FORMAT: status_t = B_MEDIA_ERROR_BASE + 103;
+	pub const B_MEDIA_BAD_BUFFER: status_t = B_MEDIA_ERROR_BASE + 104;
+	pub const B_MEDIA_TOO_MANY_NODES: status_t = B_MEDIA_ERROR_BASE + 105;
+	pub const B_MEDIA_TOO_MANY_BUFFERS: status_t = B_MEDIA_ERROR_BASE + 106;
+	pub const B_MEDIA_NODE_ALREADY_EXISTS: status_t = B_MEDIA_ERROR_BASE + 107;
+	pub const B_MEDIA_BUFFER_ALREADY_EXISTS: status_t = B_MEDIA_ERROR_BASE + 108;
+	pub const B_MEDIA_CANNOT_SEEK: status_t = B_MEDIA_ERROR_BASE + 109;
+	pub const B_MEDIA_CANNOT_CHANGE_RUN_MODE: status_t = B_MEDIA_ERROR_BASE + 110;
+	pub const B_MEDIA_APP_ALREADY_REGISTERED: status_t = B_MEDIA_ERROR_BASE + 111;
+	pub const B_MEDIA_APP_NOT_REGISTERED: status_t = B_MEDIA_ERROR_BASE + 112;
+	pub const B_MEDIA_CANNOT_RECLAIM_BUFFERS: status_t = B_MEDIA_ERROR_BASE + 113;
+	pub const B_MEDIA_BUFFERS_NOT_RECLAIMED: status_t = B_MEDIA_ERROR_BASE + 114;
+	pub const B_MEDIA_TIME_SOURCE_STOPPED: status_t = B_MEDIA_ERROR_BASE + 115;
+	pub const B_MEDIA_TIME_SOURCE_BUSY: status_t = B_MEDIA_ERROR_BASE + 116;
+	pub const B_MEDIA_BAD_SOURCE: status_t = B_MEDIA_ERROR_BASE + 117;
+	pub const B_MEDIA_BAD_DESTINATION: status_t = B_MEDIA_ERROR_BASE + 118;
+	pub const B_MEDIA_ALREADY_CONNECTED: status_t = B_MEDIA_ERROR_BASE + 119;
+	pub const B_MEDIA_NOT_CONNECTED: status_t = B_MEDIA_ERROR_BASE + 120;
+	pub const B_MEDIA_BAD_CLIP_FORMAT: status_t = B_MEDIA_ERROR_BASE + 121;
+	pub const B_MEDIA_ADDON_FAILED: status_t = B_MEDIA_ERROR_BASE + 122;
+	pub const B_MEDIA_ADDON_DISABLED: status_t = B_MEDIA_ERROR_BASE + 123;
+	pub const B_MEDIA_CHANGE_IN_PROGRESS: status_t = B_MEDIA_ERROR_BASE + 124;
+	pub const B_MEDIA_STALE_CHANGE_COUNT: status_t = B_MEDIA_ERROR_BASE + 125;
+	pub const B_MEDIA_ADDON_RESTRICTED: status_t = B_MEDIA_ERROR_BASE + 126;
+	pub const B_MEDIA_NO_HANDLER: status_t = B_MEDIA_ERROR_BASE + 127;
+	pub const B_MEDIA_DUPLICATE_FORMAT: status_t = B_MEDIA_ERROR_BASE + 128;
+	pub const B_MEDIA_REALTIME_DISABLED: status_t = B_MEDIA_ERROR_BASE + 129;
+	pub const B_MEDIA_REALTIME_UNAVAILABLE: status_t = B_MEDIA_ERROR_BASE + 130;
+
+	// Mail kit errors
+	pub const B_MAIL_NO_DAEMON: status_t = B_MAIL_ERROR_BASE + 0;
+	pub const B_MAIL_UNKNOWN_USER: status_t = B_MAIL_ERROR_BASE + 1;
+	pub const B_MAIL_WRONG_PASSWORD: status_t = B_MAIL_ERROR_BASE + 2;
+	pub const B_MAIL_UNKNOWN_HOST: status_t = B_MAIL_ERROR_BASE + 3;
+	pub const B_MAIL_ACCESS_ERROR: status_t = B_MAIL_ERROR_BASE + 4;
+	pub const B_MAIL_UNKNOWN_FIELD: status_t = B_MAIL_ERROR_BASE + 5;
+	pub const B_MAIL_NO_RECIPIENT: status_t = B_MAIL_ERROR_BASE + 6;
+	pub const B_MAIL_INVALID_MAIL: status_t = B_MAIL_ERROR_BASE + 7;
+
+	// Print kit errors
+	pub const B_NO_PRINT_SERVER: status_t = B_PRINT_ERROR_BASE + 0;
+
+	// Device kit errors
+	pub const B_DEV_INVALID_IOCTL: status_t = B_DEVICE_ERROR_BASE + 0;
+	pub const B_DEV_NO_MEMORY: status_t = B_DEVICE_ERROR_BASE + 1;
+	pub const B_DEV_BAD_DRIVE_NUM: status_t = B_DEVICE_ERROR_BASE + 2;
+	pub const B_DEV_NO_MEDIA: status_t = B_DEVICE_ERROR_BASE + 3;
+	pub const B_DEV_UNREADABLE: status_t = B_DEVICE_ERROR_BASE + 4;
+	pub const B_DEV_FORMAT_ERROR: status_t = B_DEVICE_ERROR_BASE + 5;
+	pub const B_DEV_TIMEOUT: status_t = B_DEVICE_ERROR_BASE + 6;
+	pub const B_DEV_RECALIBRATE_ERROR: status_t = B_DEVICE_ERROR_BASE + 7;
+	pub const B_DEV_SEEK_ERROR: status_t = B_DEVICE_ERROR_BASE + 8;
+	pub const B_DEV_ID_ERROR: status_t = B_DEVICE_ERROR_BASE + 9;
+	pub const B_DEV_READ_ERROR: status_t = B_DEVICE_ERROR_BASE + 10;
+	pub const B_DEV_WRITE_ERROR: status_t = B_DEVICE_ERROR_BASE + 11;
+	pub const B_DEV_NOT_READY: status_t = B_DEVICE_ERROR_BASE + 12;
+	pub const B_DEV_MEDIA_CHANGED: status_t = B_DEVICE_ERROR_BASE + 13;
+	pub const B_DEV_MEDIA_CHANGE_REQUESTED: status_t = B_DEVICE_ERROR_BASE + 14;
+	pub const B_DEV_RESOURCE_CONFLICT: status_t = B_DEVICE_ERROR_BASE + 15;
+	pub const B_DEV_CONFIGURATION_ERROR: status_t = B_DEVICE_ERROR_BASE + 16;
+	pub const B_DEV_DISABLED_BY_USER: status_t = B_DEVICE_ERROR_BASE + 17;
+	pub const B_DEV_DOOR_OPEN: status_t = B_DEVICE_ERROR_BASE + 18;
+
+	pub const B_DEV_INVALID_PIPE: status_t = B_DEVICE_ERROR_BASE + 19;
+	pub const B_DEV_CRC_ERROR: status_t = B_DEVICE_ERROR_BASE + 20;
+	pub const B_DEV_STALLED: status_t = B_DEVICE_ERROR_BASE + 21;
+	pub const B_DEV_BAD_PID: status_t = B_DEVICE_ERROR_BASE + 22;
+	pub const B_DEV_UNEXPECTED_PID: status_t = B_DEVICE_ERROR_BASE + 23;
+	pub const B_DEV_DATA_OVERRUN: status_t = B_DEVICE_ERROR_BASE + 24;
+	pub const B_DEV_DATA_UNDERRUN: status_t = B_DEVICE_ERROR_BASE + 25;
+	pub const B_DEV_FIFO_OVERRUN: status_t = B_DEVICE_ERROR_BASE + 26;
+	pub const B_DEV_FIFO_UNDERRUN: status_t = B_DEVICE_ERROR_BASE + 27;
+	pub const B_DEV_PENDING: status_t = B_DEVICE_ERROR_BASE + 28;
+	pub const B_DEV_MULTIPLE_ERRORS: status_t = B_DEVICE_ERROR_BASE + 29;
+	pub const B_DEV_TOO_LATE: status_t = B_DEVICE_ERROR_BASE + 30;
+
+	// translation kit errors
+	pub const B_TRANSLATION_BASE_ERROR: status_t = B_TRANSLATION_ERROR_BASE + 0;
+	pub const B_NO_TRANSLATOR: status_t = B_TRANSLATION_ERROR_BASE + 1;
+	pub const B_ILLEGAL_DATA: status_t = B_TRANSLATION_ERROR_BASE + 2;
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
