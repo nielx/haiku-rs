@@ -325,6 +325,37 @@ pub mod teams {
 	}
 }
 
+// Helpers for this crate only
+pub(crate) mod helpers {
+	use std::ffi::CStr;
+	use std::str;
+	
+	use haiku_sys::*;
+	use libc::{c_char, dev_t, ino_t, size_t}; 
+	
+	use support::{Result, HaikuError};
+	
+	pub(crate) fn get_path_for_entry_ref(device: dev_t, dir: ino_t, leaf: *const c_char) -> Result<String> {
+		extern {
+			pub fn _kern_entry_ref_to_path(device: dev_t, inode: ino_t, leaf: *const c_char, buf: *mut c_char, bufferSize: size_t) -> status_t;
+		}
+		
+		let mut buf = [0 as c_char; B_PATH_NAME_LENGTH];
+		let p = buf.as_mut_ptr();
+		let path = unsafe {
+			let result = _kern_entry_ref_to_path(device, dir, leaf, p, buf.len());
+			if result != 0 {
+				return Err(HaikuError::from_raw_os_error(result));
+			}
+			
+			let p = p as *const _;
+			str::from_utf8(CStr::from_ptr(p).to_bytes()).unwrap().to_owned()
+		};
+		Ok(path)
+	}
+}
+				
+
 
 // Todo: legacy code, this should be moved to haiku-sys
 pub mod file_open_mode_constants {

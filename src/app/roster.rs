@@ -1,10 +1,11 @@
-use libc::{dev_t, getuid, ino_t};
+use libc::{c_char, dev_t, getuid, ino_t};
 use haiku_sys::{B_MIME_TYPE_LENGTH, B_FILE_NAME_LENGTH, port_id, team_id, thread_id};
 use std::{mem, ptr};
 use std::str::{Utf8Error, from_utf8};
 
 use ::app::message::Message;
 use ::app::messenger::Messenger;
+use ::kernel::helpers;
 use ::kernel::ports::Port;
 use ::kernel::teams::Team;
 use ::support::flattenable::Flattenable;
@@ -106,7 +107,7 @@ struct FlatAppInfo {
 	pub ref_device: dev_t,
 	pub ref_directory: ino_t,
 	signature: [u8; B_MIME_TYPE_LENGTH],
-	ref_name: [u8; B_FILE_NAME_LENGTH + 1]
+	ref_name: [c_char; B_FILE_NAME_LENGTH + 1]
 }
 
 
@@ -116,7 +117,7 @@ impl FlatAppInfo {
 			Ok(value) => String::from(value),
 			Err(_) => String::new()
 		};
-		let ref_name = match FlatAppInfo::str_from_array_with_or_without_nul(&self.ref_name) {
+		let path = match helpers::get_path_for_entry_ref(self.ref_device, self.ref_directory, self.ref_name.as_ptr()) {
 			Ok(value) => String::from(value),
 			Err(_) => String::new()
 		};
@@ -125,9 +126,7 @@ impl FlatAppInfo {
 			team: self.team,
 			port: self.port,
 			flags: self.flags,
-			ref_device: self.ref_device,
-			ref_directory: self.ref_directory,
-			ref_name: ref_name,
+			path: path,
 			signature: signature 
 		}
 	}
@@ -174,10 +173,7 @@ pub struct AppInfo {
 	pub team: team_id,
 	pub port: port_id,
 	pub flags: u32,
-	// TODO: the fields of ref_ should become an entry_ref, when we support that
-	pub ref_device: dev_t,
-	pub ref_directory: ino_t,
-	pub ref_name: String,
+	pub path: String,
 	pub signature: String,
 }
 
