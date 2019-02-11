@@ -3,4 +3,6 @@
 // All rights reserved. Distributed under the terms of the MIT License.
 //
 
+
+pub mod errors;
 pub mod flattenable;
