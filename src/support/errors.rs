@@ -28,12 +28,14 @@ enum Repr{
 
 #[derive(Clone, Copy, Debug)]
 pub enum ErrorKind {
+	InvalidInput,
 	Other,
 }
 
 impl ErrorKind {
 	pub(crate) fn as_str(&self) -> &'static str {
 		match *self {
+			ErrorKind::InvalidInput => "invalid input parameter",
 			ErrorKind::Other => "other os error",
 		}
 	}

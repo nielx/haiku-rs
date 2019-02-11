@@ -12,13 +12,12 @@
 pub mod ports {
 	use libc::c_char;
 	use haiku_sys::*;
-	use std::io;
-	use std::io::{Error, ErrorKind};
 	use std::ffi::{CStr, CString};
 	use std::mem;
 	use std::time::Duration;
 	
 	use kernel::teams::Team;
+	use support::{ErrorKind, HaikuError, Result};
 	
 	/// The port object represents a Haiku port
 	///
@@ -66,14 +65,14 @@ pub mod ports {
 		/// The `name` parameter should be no more than 32 characters. The
 		/// `capacity` should be zero or higher. On success you will get a new
 		/// port object.
-		pub fn create(name: &str, capacity: i32) -> io::Result<Port> {
+		pub fn create(name: &str, capacity: i32) -> Result<Port> {
 			if name.len() > B_OS_NAME_LENGTH {
-				return Err(Error::new(ErrorKind::InvalidInput, "the name is too large"));
+				return Err(HaikuError::new(ErrorKind::InvalidInput));
 			}
 			let c_name = CString::new(name).unwrap();
 			let port = unsafe { create_port(capacity, c_name.as_ptr()) };
 			if port < 0 {
-				Err(Error::from_raw_os_error(port))
+				Err(HaikuError::from_raw_os_error(port))
 			} else {
 				Ok(Port {
 					port: port,
@@ -134,7 +133,7 @@ pub mod ports {
 		/// The data is identified by a `type_code` and is sent as an array of
 		/// bytes. If the port has already reached its maximum capacity, this
 		/// operation will block until the message can be written.
-		pub fn write(&self, type_code: i32, data: &[u8]) -> io::Result<()>{
+		pub fn write(&self, type_code: i32, data: &[u8]) -> Result<()>{
 			let status = unsafe { 
 				write_port(self.port, type_code, data.as_ptr(), data.len() as usize) 
 			};
@@ -142,7 +141,7 @@ pub mod ports {
 			if status == 0 {
 				Ok(())
 			} else {
-				Err(Error::from_raw_os_error(status))
+				Err(HaikuError::from_raw_os_error(status))
 			}
 		}
 		
@@ -153,7 +152,7 @@ pub mod ports {
 		/// operation will block until the message can be written, or until the
 		/// timeout is reached. Set the timeout to 0 if you want to return
 		/// immediately if the port is at capacity.
-		pub fn try_write(&self, type_code: i32, data: &[u8], timeout: Duration) -> io::Result<()>{
+		pub fn try_write(&self, type_code: i32, data: &[u8], timeout: Duration) -> Result<()>{
 			let timeout_ms = timeout.as_secs() as i64 * 1_000_000 + timeout.subsec_micros() as i64;
 			let status = unsafe {
 				write_port_etc(self.port, type_code, data.as_ptr(), data.len() as usize,
@@ -164,7 +163,7 @@ pub mod ports {
 			if status == 0 {
 				Ok(())
 			} else {
-				Err(Error::from_raw_os_error(status))
+				Err(HaikuError::from_raw_os_error(status))
 			}
 		}
 		
@@ -173,13 +172,13 @@ pub mod ports {
 		/// This method reads the next message from the port. The data is 
 		/// returned as a tuple of a type code and a buffer. The method waits
 		/// until there is a next message.
-		pub fn read(&self) -> io::Result<((i32, Vec<u8>))> {
+		pub fn read(&self) -> Result<((i32, Vec<u8>))> {
 			if !self.owned {
 				panic!("You are trying to read from a port that you do not own. This is not allowed");
 			}
 			let size = unsafe { port_buffer_size(self.port) };
 			if size < 0 {
-				return Err(Error::from_raw_os_error(size as i32));
+				return Err(HaikuError::from_raw_os_error(size as i32));
 			}
 			let mut dst = Vec::with_capacity(size as usize);
 			let pdst = dst.as_mut_ptr();
@@ -193,7 +192,7 @@ pub mod ports {
 			}
 			
 			if dst_len < 0 {
-				Err(Error::from_raw_os_error(dst_len as i32))
+				Err(HaikuError::from_raw_os_error(dst_len as i32))
 			} else {
 				unsafe { dst.set_len(dst_len as usize); };
 				Ok((type_code, dst))
@@ -207,7 +206,7 @@ pub mod ports {
 		/// until there is a next message, or until when a timeout if reached.
 		/// If you don't want to wait for a message to come in, you can set the
 		/// timeout to 0
-		pub fn try_read(&self, timeout: Duration) -> io::Result<((i32, Vec<u8>))> {
+		pub fn try_read(&self, timeout: Duration) -> Result<((i32, Vec<u8>))> {
 			if !self.owned {
 				panic!("You are trying to read from a port that you do not own. This is not allowed");
 			}
@@ -216,7 +215,7 @@ pub mod ports {
 				port_buffer_size_etc(self.port, B_TIMEOUT, timeout_ms) 
 			};
 			if size < 0 {
-				return Err(Error::from_raw_os_error(size as i32));
+				return Err(HaikuError::from_raw_os_error(size as i32));
 			}
 			let mut dst = Vec::with_capacity(size as usize);
 			let pdst = dst.as_mut_ptr();
@@ -237,7 +236,7 @@ pub mod ports {
 			}
 			
 			if dst_len < 0 {
-				Err(Error::from_raw_os_error(dst_len as i32))
+				Err(HaikuError::from_raw_os_error(dst_len as i32))
 			} else {
 				unsafe { dst.set_len(dst_len as usize); };
 				Ok((type_code, dst))
@@ -250,7 +249,7 @@ pub mod ports {
 		/// When a port is closed, data can no longer be written to it. The
 		/// message queue can still be read. Once a port is closed, it cannot
 		/// be reopened.
-		pub fn close(&self) -> io::Result<()> {
+		pub fn close(&self) -> Result<()> {
 			if !self.owned {
 				panic!("You are trying to close a port that you do not own. This is not allowed");
 			}
@@ -259,18 +258,18 @@ pub mod ports {
 			if status == 0 {
 				Ok(())
 			} else {
-				Err(Error::from_raw_os_error(status))
+				Err(HaikuError::from_raw_os_error(status))
 			}
 		}
 		
 		/// Get the port info
-		pub fn get_info(&self) -> io::Result<PortInfo> {
+		pub fn get_info(&self) -> Result<PortInfo> {
 			let mut info: port_info = unsafe { mem::zeroed() };
 			let status = unsafe {
 				get_port_info(self.port, &mut info)
 			};
 			if status != 0 {
-				Err(Error::from_raw_os_error(status))
+				Err(HaikuError::from_raw_os_error(status))
 			} else {
 				let c_name = unsafe {
 					CStr::from_ptr((&info.name) as *const c_char)
@@ -326,14 +325,8 @@ pub mod teams {
 	}
 }
 
-// TODO: Legacy code, this should be moved soon!
-pub mod errors {
-	use haiku_sys::status_t;
-	
-	pub const B_OK: status_t = 0;
-	pub const B_INTERRUPTED: status_t = 2147483658;
-}
 
+// Todo: legacy code, this should be moved to haiku-sys
 pub mod file_open_mode_constants {
 	use libc::c_int;
 	

@@ -4,5 +4,9 @@
 //
 
 
-pub mod errors;
+mod errors;
 pub mod flattenable;
+
+pub use self::errors::Result as Result;
+pub use self::errors::HaikuError as HaikuError;
+pub use self::errors::ErrorKind as ErrorKind;
