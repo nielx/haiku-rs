@@ -58,7 +58,7 @@ extern {
 	pub fn port_buffer_size_etc(port: port_id, flags: u32, 
 										timeout: bigtime_t) -> ssize_t;
 	pub fn port_count(port: port_id) -> ssize_t;
-	// set_port_owner
+	pub fn set_port_owner(port: port_id, team: team_id) -> status_t;
 	
 	fn _get_port_info(port: port_id, buf: *mut port_info,
 		              portInfoSize: size_t) -> status_t;
