@@ -374,10 +374,3 @@ pub mod errors {
 	pub const B_ILLEGAL_DATA: status_t = B_TRANSLATION_ERROR_BASE + 2;
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
