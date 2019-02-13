@@ -24,6 +24,13 @@ impl fmt::Debug for HaikuError {
 enum Repr{
 	Os(status_t),
 	Simple(ErrorKind),
+	Custom(Box<Custom>)
+}
+
+#[derive(Debug)]
+struct Custom {
+	kind: ErrorKind,
+	error: Box<dyn error::Error+Send+Sync>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -41,12 +48,31 @@ impl ErrorKind {
 	}
 }
 
+impl From<ErrorKind> for HaikuError {
+	fn from(kind: ErrorKind) -> HaikuError {
+		HaikuError {
+			repr: Repr::Simple(kind)
+		}
+	}
+}
+
 impl HaikuError {
-	pub fn new(kind: ErrorKind) -> HaikuError
+	pub fn new<E>(kind: ErrorKind, error: E) -> HaikuError
+		where E: Into<Box<dyn error::Error+Send+Sync>>
 	{
-		HaikuError { repr: Repr::Simple(kind) }
+		Self::_new(kind, error.into())
 	}
 	
+	fn _new(kind: ErrorKind, error: Box<dyn error::Error+Send+Sync>) -> HaikuError
+	{
+		HaikuError {
+			repr: Repr::Custom(Box::new(Custom {
+				kind,
+				error,
+			}))
+		}
+	}
+
 	pub fn from_raw_os_error(code: status_t) -> HaikuError {
 		HaikuError { repr: Repr::Os(code) }
 	}
@@ -55,13 +81,15 @@ impl HaikuError {
 		match self.repr {
 			Repr::Os(i) => Some(i),
 			Repr::Simple(..) => None,
+			Repr::Custom(_) => None
 		}
 	}
 	
 	pub fn kind(&self) -> ErrorKind {
 		match self.repr {
 			Repr::Os(_) => ErrorKind::Other,
-			Repr::Simple(e) => e
+			Repr::Simple(e) => e,
+			Repr::Custom(ref e) => e.kind
 		}
 	}
 }
@@ -74,7 +102,8 @@ impl fmt::Debug for Repr {
 					.field("code", &code)
 					.field("kind", &ErrorKind::Other)
 					.field("message", &"message").finish(),
-			Repr::Simple(kind) => fmt.debug_tuple("Kind").field(&kind).finish()
+			Repr::Simple(kind) => fmt.debug_tuple("Kind").field(&kind).finish(),
+			Repr::Custom(ref c) => fmt::Debug::fmt(&c, fmt),
 		}
 	}
 }
@@ -87,6 +116,7 @@ impl fmt::Display for HaikuError {
 				write!(fmt, "{} (os error {})", detail, code)
 			}
 			Repr::Simple(kind) => write!(fmt, "{}", kind.as_str()),
+			Repr::Custom(ref c) => c.error.fmt(fmt),
 		}
 	}
 }

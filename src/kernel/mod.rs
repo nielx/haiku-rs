@@ -67,7 +67,7 @@ pub mod ports {
 		/// port object.
 		pub fn create(name: &str, capacity: i32) -> Result<Port> {
 			if name.len() > B_OS_NAME_LENGTH {
-				return Err(HaikuError::new(ErrorKind::InvalidInput));
+				return Err(HaikuError::new(ErrorKind::InvalidInput, "The name is too long"));
 			}
 			let c_name = CString::new(name).unwrap();
 			let port = unsafe { create_port(capacity, c_name.as_ptr()) };
