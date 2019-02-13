@@ -1,6 +1,6 @@
 extern crate haiku;
 
-use haiku::app::roster::ROSTER;
+use haiku::app::ROSTER;
 
 const NAME_FIELD_WIDTH: usize = 34;
 
