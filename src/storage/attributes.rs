@@ -21,7 +21,7 @@ pub struct AttributeDescriptor {
 	/// The size of the data on disk
 	pub size: i64,
 	/// The raw attribute type. This is a unique number that identifies a type.
-	pub raw_attribute_type: u32,
+	pub raw_attribute_type: type_code,
 }
 
 enum FileDescriptor {
@@ -31,6 +31,9 @@ enum FileDescriptor {
 
 
 /// An iterator to walk through attributes of a file stored on disk.
+///
+/// The iterator can be acquired through the `AttributeExt::iter_attributes()`
+/// method, which is implemented for both `File` and `Path`
 pub struct AttributeIterator {	
 	dir: *mut DIR,
 	file: FileDescriptor,
@@ -73,14 +76,47 @@ impl Iterator for AttributeIterator {
 	}
 }
 
+/// The `AttributeExt` trait allows for reading attributes on file system objects
+///
+/// Implementors of this attribute allow you to read file (and directory)
+/// attributes that are implemented for Haiku's native BFS. The trait is
+/// implemented for both `File` and `Path` objects. 
 pub trait AttributeExt {
+	/// The attribute iterator returns an iterator over all the attributes.
 	fn iter_attributes(&self) -> io::Result<AttributeIterator>;
+
+	/// Find an attribute by name
+	///
+	/// If the attribute cannot be found, an error will be returned.
 	fn find_attribute(&self, name: &str) -> io::Result<AttributeDescriptor>;
-	fn read_attribute_raw(&self, name: &str, raw_type: u32, pos: off_t) -> io::Result<Vec<u8>>;
-	fn write_attribute_raw(&self, name: &str, raw_type: u32, pos: off_t, buffer: &[u8]) -> io::Result<()>;
+	
+	/// Read an attribute as a vector of bytes
+	///
+	/// This method is the low level implementation of the `read_attribute`
+	/// method, that is available to read the contents of an attribute into
+	/// any type that implements the `Flattenable` interface. It is advised
+	/// to use the higher level implementation if you know which Rust type
+	/// you want to use.
+	fn read_attribute_raw(&self, name: &str, raw_type: type_code, pos: off_t) -> io::Result<Vec<u8>>;
+
+	/// Write an attribute from a slice of bytes
+	///
+	/// This method is the low level implementation of the `write_attribute`
+	/// method, that is available to write any type that implements the
+	/// `Flattenable` interface as a file system attribute.
+	///
+	/// Note that this method does not do any check if the data you are
+	/// writing is valid for the type you are trying to store.
+	/// Therefore it is advisable to use the higher level `write_attribute`
+	/// method.
+	fn write_attribute_raw(&self, name: &str, raw_type: type_code, pos: off_t, buffer: &[u8]) -> io::Result<()>;
 	fn remove_attribute(&self, name: &str) -> io::Result<()>;
 	
-	// Higher-level functions
+	/// Read an attribute and return a Rust object
+	///
+	/// This method reads the attribute and returns it in the type `T`. Please
+	/// note that you should make sure that the type `T` matches the type in the
+	/// `AttributeDescriptor`. The type T should implement the Flattenable trait.
 	fn read_attribute<T: Flattenable<T>>(&self, attribute: &AttributeDescriptor) -> io::Result<T> {
 		let value = self.read_attribute_raw(&attribute.name, attribute.raw_attribute_type, 0);
 		if value.is_err() {
@@ -99,6 +135,10 @@ pub trait AttributeExt {
 		}
 	}
 
+	/// Write an object as a file system attribute
+	///
+	/// This method writes a copy of any object that implements the Flattenable
+	/// trait to the file system.
 	fn write_attribute<T: Flattenable<T>>(&self, name: &str, value: &T) -> io::Result<()> {
 		let data = value.flatten();
 		try!(self.write_attribute_raw(name, T::type_code(), 0, &data));

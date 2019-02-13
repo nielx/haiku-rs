@@ -3,4 +3,9 @@
 // All rights reserved. Distributed under the terms of the MIT License.
 //
 
-pub mod attributes;
+///! Tools to manipulate the file system and the Haiku specific extentions to
+///! it
+
+mod attributes;
+
+pub use self::attributes::{AttributeDescriptor, AttributeIterator, AttributeExt};

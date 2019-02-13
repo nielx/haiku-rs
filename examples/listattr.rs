@@ -5,7 +5,7 @@ use std::env::args;
 use std::path::Path;
 
 use haiku_sys::*;
-use haiku::storage::attributes::{AttributeDescriptor, AttributeIterator, AttributeExt};
+use haiku::storage::{AttributeDescriptor, AttributeIterator, AttributeExt};
 
 fn get_type(type_code: u32) -> String {
 	match type_code {
