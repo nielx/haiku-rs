@@ -12,6 +12,7 @@ use std::str;
 use haiku_sys::{B_ANY_TYPE, B_MESSAGE_TYPE};
 use haiku_sys::message::*;
 
+use ::support::{ErrorKind, HaikuError, Result};
 use ::support::flattenable::Flattenable;
 
 /// A rustean representation of a BMessage
@@ -86,14 +87,14 @@ impl Message {
 		self.header.data_size += (data_size + data_size_info) as u32;
 	}
 	
-	pub fn find_data<T: Flattenable<T>>(&self, name: &str, index: usize) -> Option<T> {
+	pub fn find_data<T: Flattenable<T>>(&self, name: &str, index: usize) -> Result<T> {
 		let field_index = match self.find_field(name, T::type_code()) {
 			Some(index) => index,
-			None => return None,
+			None => return Err(HaikuError::from(ErrorKind::NotFound)),
 		};
 		let field_header = &self.fields[field_index];
 		if index >= field_header.count as usize {
-			return None;
+			return Err(HaikuError::new(ErrorKind::InvalidInput, "index is out of range"));
 		}
 		
 		if (field_header.flags & FIELD_FLAG_FIXED_SIZE) != 0 {
@@ -111,7 +112,7 @@ impl Message {
 				offset += size_of::<u32>();
 			}
 			if item_size == 0 {
-				return None;
+				return Err(HaikuError::new(ErrorKind::InvalidData, "item size at index is garbage"));
 			}
 			T::unflatten(&self.data[offset..offset+item_size])
 		}
@@ -264,39 +265,33 @@ impl Flattenable<Message> for Message {
 		vec
 	}
 	
-	fn unflatten(buffer: &[u8]) -> Option<Message> {
+	fn unflatten(buffer: &[u8]) -> Result<Message> {
 		// minimum size is at least the header
 		if buffer.len() < size_of::<message_header>() {
-			return None;
+			return Err(HaikuError::new(ErrorKind::InvalidData, "buffer size is shorter than a message"));
 		}
 		// check the first 4 bytes and compare the message constant
 		if buffer[0] != 'H' as u8 || buffer[1] != 'M' as u8 || buffer[2] != 'F' as u8 || buffer[3] != '1' as u8 {
-			return None;
-		}
-		
-		if buffer.len() < size_of::<message_header>() {
-			// TODO: return error that message is too small
-			return None;
+			return Err(HaikuError::new(ErrorKind::InvalidData, "buffer does not contain a valid haiku message"));
 		}
 
 		let data_ptr: *const u8 = buffer.as_ptr();
 		let header_ptr: *const message_header = data_ptr as *const _;
 		let header_ref: &message_header = unsafe { &*header_ptr };
-		
+
 		let mut msg = Message{
 			what: header_ref.what,
 			header: header_ref.clone(),
 			fields: Vec::new(),
 			data: Vec::new()
 		};
-		
+
 		let total_size = size_of::<message_header>() + size_of::<field_header>() * msg.header.field_count as usize + msg.header.data_size as usize;
 		
 		if total_size != buffer.len() {
-			// TODO: Error that the size of the buffer does not match the message
-			return None;
+			return Err(HaikuError::new(ErrorKind::InvalidData, "buffer is smaller than the advertised message size"));
 		}
-		
+
 		let mut offset = size_of::<message_header>();
 		for _ in 0..msg.header.field_count {
 			let (_, field_header_slice) = buffer.split_at(offset);
@@ -305,11 +300,11 @@ impl Flattenable<Message> for Message {
 			msg.fields.push(field_header_ref.clone());
 			offset += size_of::<field_header>();
 		}
-		
+
 		let (_, data_part_slice) = buffer.split_at(offset);
 		msg.data.extend_from_slice(data_part_slice);
-		
-		Some(msg)
+
+		Ok(msg)
 	}
 }
 

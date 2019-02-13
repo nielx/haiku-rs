@@ -16,6 +16,8 @@ use haiku_sys::*;
 use std::mem;
 use std::ffi::{CStr, CString};
 
+use support::{ErrorKind, HaikuError, Result};
+
 /// An interface for types that are flattenable
 pub trait Flattenable<T> {
 	/// The type code is a unique identifier that identifies the flattened data
@@ -27,7 +29,7 @@ pub trait Flattenable<T> {
 	/// Return a flattened version of this object
 	fn flatten(&self) -> Vec<u8>;
 	/// Unflatten an object from a stream
-	fn unflatten(&[u8]) -> Option<T>;
+	fn unflatten(&[u8]) -> Result<T>;
 	
 	// TODO: The Haiku API also implements AllowsTypeCode() for each supported
 	// type to for example support unflattening a mime type also as a string
@@ -57,13 +59,13 @@ impl Flattenable<bool> for bool {
 		}
 	}
 	
-	fn unflatten(buffer: &[u8]) -> Option<bool> {
+	fn unflatten(buffer: &[u8]) -> Result<bool> {
 		if buffer.len() != 1 {
-			None
+			Err(HaikuError::from(ErrorKind::InvalidData))
 		} else if buffer[0] == 0 {
-			Some(false)
+			Ok(false)
 		} else {
-			Some (true)
+			Ok(true)
 		}
 	}
 }
@@ -86,11 +88,11 @@ impl Flattenable<i8> for i8 {
 		vec!(*self as u8)
 	}
 	
-	fn unflatten(buffer: &[u8]) -> Option<i8> {
+	fn unflatten(buffer: &[u8]) -> Result<i8> {
 		if buffer.len() != 1 {
-			None
+			Err(HaikuError::from(ErrorKind::InvalidData))
 		} else {
-			Some(buffer[0] as i8)
+			Ok(buffer[0] as i8)
 		}
 	}
 }
@@ -113,11 +115,11 @@ impl Flattenable<i16> for i16 {
 		data.to_vec()
 	}
 	
-	fn unflatten(buffer: &[u8]) -> Option<i16> {
+	fn unflatten(buffer: &[u8]) -> Result<i16> {
 		if buffer.len() != 2 {
-			None
+			Err(HaikuError::from(ErrorKind::InvalidData))
 		} else {
-			Some(buffer.iter().rev().fold(0, |acc, &b| (acc << 8) | b as i16))
+			Ok(buffer.iter().rev().fold(0, |acc, &b| (acc << 8) | b as i16))
 		}
 	}
 }
@@ -141,11 +143,11 @@ impl Flattenable<i32> for i32 {
 		data.to_vec()
 	}
 	
-	fn unflatten(buffer: &[u8]) -> Option<i32> {
+	fn unflatten(buffer: &[u8]) -> Result<i32> {
 		if buffer.len() != 4 {
-			None
+			Err(HaikuError::from(ErrorKind::InvalidData))
 		} else {
-			Some(buffer.iter().rev().fold(0, |acc, &b| (acc << 8) | b as i32))
+			Ok(buffer.iter().rev().fold(0, |acc, &b| (acc << 8) | b as i32))
 		}
 	}
 }
@@ -169,11 +171,11 @@ impl Flattenable<i64> for i64 {
 		data.to_vec()
 	}
 	
-	fn unflatten(buffer: &[u8]) -> Option<i64> {
+	fn unflatten(buffer: &[u8]) -> Result<i64> {
 		if buffer.len() != 8 {
-			None
+			Err(HaikuError::from(ErrorKind::InvalidData))
 		} else {
-			Some(buffer.iter().rev().fold(0, |acc, &b| (acc << 8) | b as i64))
+			Ok(buffer.iter().rev().fold(0, |acc, &b| (acc << 8) | b as i64))
 		}
 	}
 }
@@ -196,11 +198,11 @@ impl Flattenable<u8> for u8 {
 		vec!(*self)
 	}
 	
-	fn unflatten(buffer: &[u8]) -> Option<u8> {
+	fn unflatten(buffer: &[u8]) -> Result<u8> {
 		if buffer.len() != 1 {
-			None
+			Err(HaikuError::from(ErrorKind::InvalidData))
 		} else {
-			Some(buffer[0])
+			Ok(buffer[0])
 		}
 	}
 }
@@ -223,11 +225,11 @@ impl Flattenable<u16> for u16 {
 		data.to_vec()
 	}
 	
-	fn unflatten(buffer: &[u8]) -> Option<u16> {
+	fn unflatten(buffer: &[u8]) -> Result<u16> {
 		if buffer.len() != 2 {
-			None
+			Err(HaikuError::from(ErrorKind::InvalidData))
 		} else {
-			Some(buffer.iter().rev().fold(0, |acc, &b| (acc << 8) | b as u16))
+			Ok(buffer.iter().rev().fold(0, |acc, &b| (acc << 8) | b as u16))
 		}
 	}
 }
@@ -251,11 +253,11 @@ impl Flattenable<u32> for u32 {
 		data.to_vec()
 	}
 	
-	fn unflatten(buffer: &[u8]) -> Option<u32> {
+	fn unflatten(buffer: &[u8]) -> Result<u32> {
 		if buffer.len() != 4 {
-			None
+			Err(HaikuError::from(ErrorKind::InvalidData))
 		} else {
-			Some(buffer.iter().rev().fold(0, |acc, &b| (acc << 8) | b as u32))
+			Ok(buffer.iter().rev().fold(0, |acc, &b| (acc << 8) | b as u32))
 		}
 	}
 }
@@ -279,11 +281,11 @@ impl Flattenable<u64> for u64 {
 		data.to_vec()
 	}
 	
-	fn unflatten(buffer: &[u8]) -> Option<u64> {
+	fn unflatten(buffer: &[u8]) -> Result<u64> {
 		if buffer.len() != 8 {
-			None
+			Err(HaikuError::from(ErrorKind::InvalidData))
 		} else {
-			Some(buffer.iter().rev().fold(0, |acc, &b| (acc << 8) | b as u64))
+			Ok(buffer.iter().rev().fold(0, |acc, &b| (acc << 8) | b as u64))
 		}
 	}
 }
@@ -307,13 +309,13 @@ impl Flattenable<f32> for f32 {
 		data.to_vec()
 	}
 	
-	fn unflatten(buffer: &[u8]) -> Option<f32> {
+	fn unflatten(buffer: &[u8]) -> Result<f32> {
 		if buffer.len() != 4 {
-			None
+			Err(HaikuError::from(ErrorKind::InvalidData))
 		} else {
 			let tmp: u32 = buffer.iter().rev().fold(0, |acc, &b| (acc << 8) | b as u32);
 			let tmp: f32 = unsafe { mem::transmute::<u32, f32>(tmp) };
-			Some(tmp)
+			Ok(tmp)
 		}
 	}
 }
@@ -337,13 +339,13 @@ impl Flattenable<f64> for f64 {
 		data.to_vec()
 	}
 	
-	fn unflatten(buffer: &[u8]) -> Option<f64> {
+	fn unflatten(buffer: &[u8]) -> Result<f64> {
 		if buffer.len() != 8 {
-			None
+			Err(HaikuError::from(ErrorKind::InvalidData))
 		} else {
 			let tmp: u64 = buffer.iter().rev().fold(0, |acc, &b| (acc << 8) | b as u64);
 			let tmp: f64 = unsafe { mem::transmute::<u64, f64>(tmp) };
-			Some(tmp)
+			Ok(tmp)
 		}
 	}
 }
@@ -367,13 +369,15 @@ impl Flattenable<String> for String {
 		data.into_bytes_with_nul()
 	}
 	
-	fn unflatten(buffer: &[u8]) -> Option<String> {
-		// TODO: better error handling (and maybe a better way?
-		let s = CStr::from_bytes_with_nul(buffer).unwrap();
+	fn unflatten(buffer: &[u8]) -> Result<String> {
+		let s = match CStr::from_bytes_with_nul(buffer) {
+			Ok(s) => s,
+			Err(e) => return Err(HaikuError::new(ErrorKind::InvalidData, format!("{}", e)))
+		};
 		let s_vec = s.to_bytes().to_vec();
 		match String::from_utf8(s_vec) {
-			Ok(s) => Some(s),
-			Err(_) => None
+			Ok(s) => Ok(s),
+			Err(_) => Err(HaikuError::new(ErrorKind::InvalidData, "Invalid UTF8 characters"))
 		}
 	}
 }

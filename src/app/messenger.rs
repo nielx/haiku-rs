@@ -8,6 +8,7 @@ use haiku_sys::{B_MESSAGE_TYPE, port_id};
 
 use ::app::message::Message;
 use ::kernel::ports::Port;
+use ::support::Result;
 use ::support::flattenable::Flattenable;
 
 /// A messenger is a helper that sends Messages through ports
@@ -29,7 +30,7 @@ impl Messenger {
 		}
 	}
 	
-	pub fn send_and_wait_for_reply(&self, mut message: Message) -> Option<Message> {
+	pub fn send_and_wait_for_reply(&self, mut message: Message) -> Result<Message> {
 		// Create a reply port (TODO: maybe cache?)
 		let p: Port = Port::create("tmp_reply_port", 1).unwrap();
 		let info = p.get_info().unwrap();
@@ -46,11 +47,8 @@ impl Messenger {
 
 		let flattened_message = message.flatten();
 		self.port.write(B_MESSAGE_TYPE as i32, &flattened_message).ok();
-		let result = p.read();
-		if result.is_err() {
-			return None;
-		}
-		Message::unflatten(&result.unwrap().1.as_slice())
+		let result = p.read()?;
+		Message::unflatten(&result.1.as_slice())
 	}
 }
 

@@ -35,14 +35,18 @@ struct Custom {
 
 #[derive(Clone, Copy, Debug)]
 pub enum ErrorKind {
+	InvalidData,
 	InvalidInput,
+	NotFound,
 	Other,
 }
 
 impl ErrorKind {
 	pub(crate) fn as_str(&self) -> &'static str {
 		match *self {
+			ErrorKind::InvalidData => "invalid data",
 			ErrorKind::InvalidInput => "invalid input parameter",
+			ErrorKind::NotFound => "entity not found",
 			ErrorKind::Other => "other os error",
 		}
 	}
@@ -71,6 +75,15 @@ impl HaikuError {
 				error,
 			}))
 		}
+	}
+	
+	pub fn last_os_error() -> HaikuError {
+		// Get the last OS Error
+		extern {
+			fn _errnop() -> *mut c_int;
+		}
+		let error = unsafe { *_errnop() as i32 };
+		HaikuError::from_raw_os_error(error)
 	}
 
 	pub fn from_raw_os_error(code: status_t) -> HaikuError {

@@ -1,6 +1,7 @@
 use libc::{c_char, dev_t, getuid, ino_t};
 use haiku_sys::{B_MIME_TYPE_LENGTH, B_FILE_NAME_LENGTH, port_id, team_id, thread_id};
 use std::{mem, ptr};
+use std::result;
 use std::str::{Utf8Error, from_utf8};
 
 use ::app::message::Message;
@@ -8,6 +9,7 @@ use ::app::messenger::Messenger;
 use ::kernel::helpers;
 use ::kernel::ports::Port;
 use ::kernel::teams::Team;
+use ::support;
 use ::support::flattenable::Flattenable;
 
 struct LaunchRoster {
@@ -31,7 +33,7 @@ impl LaunchRoster {
 
 		// Send message
 		let response = self.messenger.send_and_wait_for_reply(message);
-		if response.is_none() {
+		if response.is_err() {
 			return None
 		}
 		let response_message = response.unwrap();
@@ -52,7 +54,7 @@ impl Roster {
 		let request = Message::new(haiku_constant!('r','g','a','l'));
 		let response = self.messenger.send_and_wait_for_reply(request);
 
-		if response.is_none() {
+		if response.is_err() {
 			return None;
 		}
 
@@ -77,7 +79,7 @@ impl Roster {
 		request.add_data("team", &team.get_team_id());
 		let response = self.messenger.send_and_wait_for_reply(request);
 		
-		if response.is_none() {
+		if response.is_err() {
 			return None;
 		}
 		
@@ -132,7 +134,7 @@ impl FlatAppInfo {
 	}
 	
 	//Graciously borrowed from stackoverflow
-	fn str_from_array_with_or_without_nul(buf: &[u8]) -> Result<&str, Utf8Error> {
+	fn str_from_array_with_or_without_nul(buf: &[u8]) -> result::Result<&str, Utf8Error> {
 		let len = buf.iter()
 			.enumerate()
 			.find(|&(_, &byte)| byte == 0)
@@ -158,12 +160,12 @@ impl Flattenable<FlatAppInfo> for FlatAppInfo {
 		unimplemented!();
 	}
 
-	fn unflatten(buffer: &[u8]) -> Option<FlatAppInfo> {
+	fn unflatten(buffer: &[u8]) -> support::Result<FlatAppInfo> {
 		if mem::size_of::<FlatAppInfo>() != buffer.len() {
-			return None;
+			return Err(support::HaikuError::new(support::ErrorKind::InvalidData, "the buffer is smaller than the flattened app info struct"));
 		}
 		let app_info: FlatAppInfo = unsafe { ptr::read(buffer.as_ptr() as *const _) };
-		Some(app_info)
+		Ok(app_info)
 	}
 }
 

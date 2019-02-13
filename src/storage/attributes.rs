@@ -94,8 +94,8 @@ pub trait AttributeExt {
 		let contents = T::unflatten(&value.unwrap());
 		
 		match contents {
-			Some(c) => Ok(c),
-			None => Err(io::Error::new(io::ErrorKind::InvalidData, "error unflattening data"))
+			Ok(c) => Ok(c),
+			Err(_) => Err(io::Error::new(io::ErrorKind::InvalidData, "error unflattening data"))
 		}
 	}
 
