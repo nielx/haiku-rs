@@ -10,7 +10,7 @@ use ::kernel::helpers;
 use ::kernel::ports::Port;
 use ::kernel::teams::Team;
 use ::support;
-use ::support::flattenable::Flattenable;
+use ::support::Flattenable;
 
 struct LaunchRoster {
 	messenger: Messenger

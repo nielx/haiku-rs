@@ -12,8 +12,7 @@ use std::str;
 use haiku_sys::{B_ANY_TYPE, B_MESSAGE_TYPE};
 use haiku_sys::message::*;
 
-use ::support::{ErrorKind, HaikuError, Result};
-use ::support::flattenable::Flattenable;
+use ::support::{ErrorKind, Flattenable, HaikuError, Result};
 
 /// A rustean representation of a BMessage
 ///

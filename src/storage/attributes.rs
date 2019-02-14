@@ -11,7 +11,7 @@ use std::os::unix::io::AsRawFd;
 use std::path::Path;
 
 use haiku_sys::*;
-use support::flattenable::Flattenable;
+use support::Flattenable;
 use libc::{c_int, off_t, size_t, ssize_t, DIR};
 
 /// A descriptor with the metadata of an attribute.

@@ -5,8 +5,7 @@
 
 
 mod errors;
-pub mod flattenable;
+mod flattenable;
 
-pub use self::errors::Result as Result;
-pub use self::errors::HaikuError as HaikuError;
-pub use self::errors::ErrorKind as ErrorKind;
+pub use self::errors::{ErrorKind, HaikuError, Result};
+pub use self::flattenable::Flattenable;

@@ -9,7 +9,7 @@ use haiku_sys::{B_MESSAGE_TYPE, port_id};
 use ::app::message::Message;
 use ::kernel::ports::Port;
 use ::support::Result;
-use ::support::flattenable::Flattenable;
+use ::support::Flattenable;
 
 /// A messenger is a helper that sends Messages through ports
 pub struct Messenger {
