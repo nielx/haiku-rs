@@ -5,6 +5,9 @@
 
 #![allow(non_camel_case_types)]
 
+//! The kernel kit provides convenience classes that make it easy to interact
+//! with the lower level of the Haiku OS.
+
 /// A port is a system-wide communication channel that can be used to copy
 /// data between threads and teams.
 ///
