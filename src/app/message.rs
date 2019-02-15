@@ -349,14 +349,14 @@ fn test_basic_message() {
 
 #[test]
 fn test_message_flattening() {
-	let constant: u32 = ((('a' as u32) << 24) + (('b' as u32) << 16) + (('c' as u32) << 8) + ('d' as u32));
+	let constant: u32 = haiku_constant!('a', 'b', 'c', 'd');
 	let basic_message = Message::new(constant);
 	let flattened_message = basic_message.flatten();
 	let comparison: Vec<u8> = vec!(72, 77, 70, 49, 100, 99, 98, 97, 1, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255);
 	assert_eq!(flattened_message, comparison);
 
 	// Second message
-	let constant: u32 = ((('e' as u32) << 24) + (('f' as u32) << 16) + (('g' as u32) << 8) + ('h' as u32));
+	let constant: u32 = haiku_constant!('e', 'f', 'g', 'h');
 	let mut message_with_data = Message::new(constant);
 	message_with_data.add_data("UInt8", &('a' as u8));
 	message_with_data.add_data("UInt16", &(1234 as u16));
@@ -365,7 +365,7 @@ fn test_message_flattening() {
 	assert_eq!(flattened_message, comparison);
 	
 	// Third message
-	let constant: u32 = ((('l' as u32) << 24) + (('n' as u32) << 16) + (('d' as u32) << 8) + ('a' as u32));
+	let constant: u32 = haiku_constant!('l', 'n', 'd', 'a');
 	let mut app_data_message = Message::new(constant);
 	app_data_message.add_data("name", &String::from("application/x-vnd.haiku-registrar"));
 	app_data_message.add_data("user", &(0));

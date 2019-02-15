@@ -56,14 +56,14 @@ impl Messenger {
 fn test_synchronous_message_sending() {
 	use libc::getuid;
 	// B_GET_LAUNCH_DATA is defined as 'lnda' see LaunchDaemonDefs.h
-	let constant: u32 = ((('l' as u32) << 24) + (('n' as u32) << 16) + (('d' as u32) << 8) + ('a' as u32));
+	let constant: u32 = haiku_constant!('l', 'n', 'd', 'a');
 	let mut app_data_message = Message::new(constant);
 	app_data_message.add_data("name", &String::from("application/x-vnd.haiku-registrar"));
 	let uid = unsafe { getuid() };
 	app_data_message.add_data("user", &(uid as i32));
 	let port = Port::find("system:launch_daemon").unwrap();
-	let mut messenger = Messenger::from_port(&port).unwrap();
-	let mut response_message = messenger.send_and_wait_for_reply(app_data_message).unwrap();
+	let messenger = Messenger::from_port(&port).unwrap();
+	let response_message = messenger.send_and_wait_for_reply(app_data_message).unwrap();
 	println!("response_message: {:?}", response_message);
 	let port = response_message.find_data::<i32>("port", 0).unwrap();
 	println!("registrar port: {}", port);
