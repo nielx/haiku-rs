@@ -97,7 +97,11 @@ pub trait AttributeExt {
 	/// any type that implements the `Flattenable` interface. It is advised
 	/// to use the higher level implementation if you know which Rust type
 	/// you want to use.
-	fn read_attribute_raw(&self, name: &str, raw_type: type_code, pos: off_t) -> io::Result<Vec<u8>>;
+	///
+	/// Note that when you implement this trait for your object, that it is
+	/// valid to call this method with size 0. If that's the case, the caller
+	/// expects to get the whole attribute, possibly offset by `pos`.
+	fn read_attribute_raw(&self, name: &str, raw_type: type_code, pos: off_t, size: i64) -> io::Result<Vec<u8>>;
 
 	/// Write an attribute from a slice of bytes
 	///
@@ -110,6 +114,8 @@ pub trait AttributeExt {
 	/// Therefore it is advisable to use the higher level `write_attribute`
 	/// method.
 	fn write_attribute_raw(&self, name: &str, raw_type: type_code, pos: off_t, buffer: &[u8]) -> io::Result<()>;
+	
+	/// Remove the attribute with the given name
 	fn remove_attribute(&self, name: &str) -> io::Result<()>;
 	
 	/// Read an attribute and return a Rust object
@@ -118,7 +124,7 @@ pub trait AttributeExt {
 	/// note that you should make sure that the type `T` matches the type in the
 	/// `AttributeDescriptor`. The type T should implement the Flattenable trait.
 	fn read_attribute<T: Flattenable<T>>(&self, attribute: &AttributeDescriptor) -> io::Result<T> {
-		let value = self.read_attribute_raw(&attribute.name, attribute.raw_attribute_type, 0);
+		let value = self.read_attribute_raw(&attribute.name, attribute.raw_attribute_type, 0, 0);
 		if value.is_err() {
 			return Err(value.unwrap_err());
 		}
@@ -169,23 +175,34 @@ impl AttributeExt for File {
 		Ok(AttributeDescriptor{name: name.to_string(), size: attr_info_data.size, raw_attribute_type: attr_info_data.attr_type})
 	}
 	
-	fn read_attribute_raw(&self, name: &str, _raw_type: u32, _pos: off_t) -> io::Result<Vec<u8>>{
+	fn read_attribute_raw(&self, name: &str, _raw_type: u32, pos: off_t, size: i64) -> io::Result<Vec<u8>>{
 		let fd = self.as_raw_fd();
-
+		
 		// Get attribute stat
 		let descriptor = try!(self.find_attribute(name));
-		
+
+		// Validate input
+		if descriptor.size < pos {
+			return Err(io::Error::new(io::ErrorKind::InvalidInput, "the position is higher than the size of the attribute"));
+		}
+
 		// Read the data
 		let attr_name = CString::new(descriptor.name).unwrap();
+		let mut len = if size > 0 {
+			// Use the user-supplied size
+			size
+		} else {
+			// Calculate the size
+			descriptor.size - pos
+		};
 		let mut dst = Vec::with_capacity(descriptor.size as usize);
 		let read_size = unsafe { fs_read_attr(fd, attr_name.as_ptr(), descriptor.raw_attribute_type,
-												0, dst.as_mut_ptr(), descriptor.size as size_t) };
+												pos, dst.as_mut_ptr(), len as size_t) };
 		
 		if read_size == -1 {
 			return Err(io::Error::last_os_error());
-		} else if read_size != descriptor.size as ssize_t {
-			return Err(io::Error::new(io::ErrorKind::InvalidData, "size mismatch between attribute size and read size"));
 		}
+
 		unsafe { dst.set_len(read_size as usize) };
 		Ok(dst)
 	}
@@ -232,9 +249,9 @@ impl AttributeExt for Path {
 		file.find_attribute(name)
 	}
 	
-	fn read_attribute_raw(&self, name: &str, raw_type: u32, pos: off_t) -> io::Result<Vec<u8>> {
+	fn read_attribute_raw(&self, name: &str, raw_type: u32, pos: off_t, size: i64) -> io::Result<Vec<u8>> {
 		let file = try!(File::open(self));
-		file.read_attribute_raw(name, raw_type, pos)
+		file.read_attribute_raw(name, raw_type, pos, size)
 	}
 	
 	fn write_attribute_raw(&self, name: &str, raw_type: u32, pos: off_t, buffer: &[u8]) -> io::Result<()> {
@@ -262,7 +279,7 @@ fn test_attribute_ext() {
 	let mut attribute_iterator = file.iter_attributes().unwrap();
 	let attribute_descriptor = attribute_iterator.find(|attribute| attribute.as_ref().unwrap().name == "SYS:NAME").unwrap();
 	
-	let attribute_data_raw = file.read_attribute_raw("SYS:NAME", 0, 0).unwrap();
+	let attribute_data_raw = file.read_attribute_raw("SYS:NAME", 0, 0, 0).unwrap();
 	let attribute_data_cstring = CStr::from_bytes_with_nul(attribute_data_raw.as_slice()).unwrap();
 	let attribute_data = attribute_data_cstring.to_str().unwrap();
 	
