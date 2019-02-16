@@ -14,8 +14,6 @@ macro_rules! haiku_constant {
 	($a:tt, $b:tt, $c:tt, $d:tt) => ((($a as u32) << 24) + (($b as u32) << 16) + (($c as u32) << 8) + ($d as u32));
 }
 
-pub mod message;
-
 // OS.h
 pub const B_OS_NAME_LENGTH : usize = 32;
 pub const B_TIMEOUT: u32 = 0x8;

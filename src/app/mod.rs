@@ -10,6 +10,7 @@
 mod message;
 mod messenger;
 mod roster;
+pub(crate) mod sys;
 
 pub use self::message::Message;
 pub use self::messenger::Messenger;

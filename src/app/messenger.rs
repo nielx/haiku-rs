@@ -3,10 +3,10 @@
 // All rights reserved. Distributed under the terms of the MIT License.
 //
 
-use haiku_sys::message::*;
 use haiku_sys::{B_MESSAGE_TYPE, port_id};
 
 use ::app::message::Message;
+use ::app::sys::*;
 use ::kernel::ports::Port;
 use ::support::Result;
 use ::support::Flattenable;

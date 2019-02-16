@@ -10,8 +10,8 @@ use std::slice::from_raw_parts;
 use std::str;
 
 use haiku_sys::{B_ANY_TYPE, B_MESSAGE_TYPE};
-use haiku_sys::message::*;
 
+use ::app::sys::*;
 use ::support::{ErrorKind, Flattenable, HaikuError, Result};
 
 /// A rustean representation of a BMessage

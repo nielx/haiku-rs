@@ -1,11 +1,11 @@
 //
-// Copyright 2018, Niels Sascha Reedijk <niels.reedijk@gmail.com>
+// Copyright 2019, Niels Sascha Reedijk <niels.reedijk@gmail.com>
 // All rights reserved. Distributed under the terms of the MIT License.
 //
 
 #![allow(non_camel_case_types)]
 
-use ::{type_code, area_id, port_id, team_id};
+use haiku_sys::{type_code, area_id, port_id, team_id};
 
 // private/app/MessagePrivate.h
 
