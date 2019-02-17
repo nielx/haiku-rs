@@ -12,7 +12,7 @@ use std::path::Path;
 
 use haiku_sys::*;
 use support::Flattenable;
-use libc::{c_int, off_t, size_t, ssize_t, DIR};
+use libc::{c_int, off_t, size_t, DIR};
 
 /// A descriptor with the metadata of an attribute.
 pub struct AttributeDescriptor {
@@ -270,19 +270,55 @@ impl AttributeExt for Path {
 }
 
 
-#[test]
-fn test_attribute_ext() {
+#[cfg(test)]
+mod test {
+	extern crate tempfile;
+
+	use haiku_sys::B_STRING_TYPE;
+	use std::ffi::CStr;
+	use std::fs::File;
 	use std::path::Path;
 	
-	let path = Path::new("/boot/system/apps/StyledEdit");
-	let file = File::open(&path).unwrap();
-	let mut attribute_iterator = file.iter_attributes().unwrap();
-	let attribute_descriptor = attribute_iterator.find(|attribute| attribute.as_ref().unwrap().name == "SYS:NAME").unwrap();
-	
-	let attribute_data_raw = file.read_attribute_raw("SYS:NAME", 0, 0, 0).unwrap();
-	let attribute_data_cstring = CStr::from_bytes_with_nul(attribute_data_raw.as_slice()).unwrap();
-	let attribute_data = attribute_data_cstring.to_str().unwrap();
-	
-	let attribute_data_higher_api = file.read_attribute::<String>(&attribute_descriptor.unwrap()).unwrap();
-	assert_eq!(attribute_data, attribute_data_higher_api);
+	use storage::attributes::AttributeExt;
+
+	#[test]
+	fn test_attribute_ext() {		
+		// Test the lower and higher level reading api
+		let path = Path::new("/boot/system/apps/StyledEdit");
+		let file = File::open(&path).unwrap();
+		let mut attribute_iterator = file.iter_attributes().unwrap();
+		let attribute_descriptor = attribute_iterator.find(|attribute| attribute.as_ref().unwrap().name == "SYS:NAME").unwrap();
+
+		let attribute_data_raw = file.read_attribute_raw("SYS:NAME", 0, 0, 0).unwrap();
+		let attribute_data_cstring = CStr::from_bytes_with_nul(attribute_data_raw.as_slice()).unwrap();
+		let attribute_data = attribute_data_cstring.to_str().unwrap();
+
+		let attribute_data_higher_api = file.read_attribute::<String>(&attribute_descriptor.unwrap()).unwrap();
+		assert_eq!(attribute_data, attribute_data_higher_api);
+
+		// Read, write and remove data using the file attribute API
+		let mut temporary_file = tempfile::NamedTempFile::new().unwrap();
+		let file = temporary_file.as_file();
+		let string_data = String::from("attribute test data");
+		let int_data: u8 = 15;
+		file.write_attribute("test_string", &string_data).unwrap();
+		file.write_attribute("test_u8", &int_data).unwrap();
+		let string_read = file.read_attribute_raw("test_string", B_STRING_TYPE, 3, 1).unwrap();
+		assert_eq!(string_read[0], 'r' as u8);
+		let int_attribute = file.find_attribute("test_u8").unwrap();
+		let int_read = file.read_attribute::<u8>(&int_attribute).unwrap();
+		assert_eq!(int_read, int_data);
+		file.remove_attribute("test_u8").unwrap();
+		assert!(file.find_attribute("test_u8").is_err());
+
+		// Read, write and remove data using the path attribute API
+		let path = temporary_file.path();
+		let string_read = path.read_attribute_raw("test_string", B_STRING_TYPE, 3, 1).unwrap();
+		assert_eq!(string_read[0], 'r' as u8);
+		path.write_attribute("test_u8", &int_data).unwrap();
+		let int_read = path.read_attribute::<u8>(&int_attribute).unwrap();
+		assert_eq!(int_read, int_data);
+		path.remove_attribute("test_u8").unwrap();
+		assert!(path.find_attribute("test_u8").is_err());		
+	}
 }
