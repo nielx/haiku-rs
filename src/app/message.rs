@@ -59,30 +59,42 @@ impl Message {
 		
 		let result = self.find_field(name, T::type_code());
 		let field_index = match result {
-			Some(_) => unimplemented!("We did not implement multiple values"),
+			Some(index) => index,
 			None => self.add_field(name, T::type_code(), T::is_fixed_size())
 		};
-		
-		let field_header = self.fields.get_mut(field_index).unwrap();
-		// Copy the data
-		// TODO: we really want to add a flatten_into function to stop the
-		// double copy
+
+		// Prepare the buffer for the copying of data
 		let data_size = data.flattened_size();
 		let data_size_info = if T::is_fixed_size() {
-			0 
+			0
 		} else {
 			size_of::<u32>()
 		};
+		let mut offset = {
+			// Don't get a mutable field_header here just yet, as update_offsets
+			// needs mutable references
+			let field_header = self.fields.get(field_index).unwrap();
+			(field_header.offset + field_header.name_length as u32 + field_header.data_size) as usize
+		};
 		self.data.reserve(data_size + data_size_info);
+		self.update_offsets(offset, (data_size + data_size_info) as isize);
+
+		// Actually copy the data
+		// Note that there might be room for optimization by using ptr::copy
+		// instead of the vector functions, especially when the field has a
+		// variable size, as that now does two moves.
 		if !T::is_fixed_size() {
-			self.data.append(&mut (data_size as u32).flatten());
+			let data_size_vec = (data_size as u32).flatten();
+			self.data.splice(offset..offset, data_size_vec.iter().cloned());
+			offset += size_of::<u32>();
 		}
 		let mut data = data.flatten();
-		self.data.append(&mut data);
-		
+		self.data.splice(offset..offset, data.iter().cloned());
+
 		// Update the headers
+		let field_header = self.fields.get_mut(field_index).unwrap();
 		field_header.count += 1;
-		field_header.data_size = (data_size + data_size_info) as u32;
+		field_header.data_size += (data_size + data_size_info) as u32;
 		self.header.data_size += (data_size + data_size_info) as u32;
 	}
 	
@@ -216,6 +228,16 @@ impl Message {
 		
 		return (self.header.field_count - 1) as usize;
 	}
+
+	fn update_offsets(&mut self, offset: usize, change: isize) {
+		if offset < self.data.len() {
+			for field in self.fields.iter_mut() {
+				if field.offset as usize >= offset {
+					field.offset = ((field.offset as isize) + change) as u32;
+				}
+			}
+		}
+	}
 }
 
 impl Flattenable<Message> for Message {
@@ -339,12 +361,17 @@ impl fmt::Debug for Message {
 }
 
 #[test]
-fn test_basic_message() {
-	let msg_constant = 1234567890;
-	let msg = Message::new(msg_constant);
-	let flattened_msg = msg.flatten();
-	let unflattened_msg = Message::unflatten(flattened_msg.as_slice()).unwrap();
-	assert_eq!(unflattened_msg.what, msg_constant);
+fn test_message_add_and_remove() {
+	let constant: u32 = haiku_constant!('a', 'b', 'c', 'd');
+	let mut message = Message::new(constant);
+	message.add_data("parameter1", &(15 as i8));
+	message.add_data("parameter2", &String::from("value1"));
+	message.add_data("parameter1", &(51 as i8));
+	message.add_data("parameter2", &String::from("value2"));
+
+	let flattened_message = message.flatten();
+	let comparison: Vec<u8> = vec!(72, 77, 70, 49, 100, 99, 98, 97, 1, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 46, 0, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 3, 0, 11, 0, 69, 84, 89, 66, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 11, 0, 82, 84, 83, 67, 2, 0, 0, 0, 22, 0, 0, 0, 13, 0, 0, 0, 255, 255, 255, 255, 112, 97, 114, 97, 109, 101, 116, 101, 114, 49, 0, 15, 51, 112, 97, 114, 97, 109, 101, 116, 101, 114, 50, 0, 7, 0, 0, 0, 118, 97, 108, 117, 101, 49, 0, 7, 0, 0, 0, 118, 97, 108, 117, 101, 50, 0);
+	assert_eq!(flattened_message, comparison);
 }
 
 #[test]
