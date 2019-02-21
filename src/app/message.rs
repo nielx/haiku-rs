@@ -1,15 +1,17 @@
 //
-// Copyright 2018, Niels Sascha Reedijk <niels.reedijk@gmail.com>
+// Copyright 2018-2019, Niels Sascha Reedijk <niels.reedijk@gmail.com>
 // All rights reserved. Distributed under the terms of the MIT License.
 //
 
+use std::char;
 use std::fmt;
-use std::mem::{size_of, transmute_copy};
+use std::mem::{size_of, transmute_copy, zeroed};
 use std::ptr;
 use std::slice::from_raw_parts;
 use std::str;
 
-use haiku_sys::{B_ANY_TYPE, B_MESSAGE_TYPE};
+use haiku_sys::{B_ANY_TYPE, B_MESSAGE_TYPE, find_thread, get_thread_info, thread_info};
+use haiku_sys::errors::B_OK;
 
 use ::app::sys::*;
 use ::support::{ErrorKind, Flattenable, HaikuError, Result};
@@ -88,7 +90,7 @@ impl Message {
 			self.data.splice(offset..offset, data_size_vec.iter().cloned());
 			offset += size_of::<u32>();
 		}
-		let mut data = data.flatten();
+		let data = data.flatten();
 		self.data.splice(offset..offset, data.iter().cloned());
 
 		// Update the headers
@@ -140,6 +142,66 @@ impl Message {
 		};
 		let field_header = self.fields.get(field_index).unwrap();
 		Some((field_header.field_type, field_header.count as usize, (field_header.flags & FIELD_FLAG_FIXED_SIZE) != 0))
+	}
+
+	/// Check if the message has data associated with it
+	pub fn is_empty(&self) -> bool {
+		self.fields.len() == 0
+	}
+
+	/// Check if the message is a system message
+	///
+	/// System messages have a what code that is built up from the '_'
+	/// (underscore) character, and three capital letters. Example: `_BED`
+	/// Because of this fact it is advised not to give your message codes
+	/// this structure.
+	pub fn is_system(&self) -> bool {
+		let a: char = char::from_u32((self.what >> 24) & 0xff).unwrap_or('x');
+		let b: char = char::from_u32((self.what >> 16) & 0xff).unwrap_or('x');
+		let c: char = char::from_u32((self.what >> 8) & 0xff).unwrap_or('x');
+		let d: char = char::from_u32(self.what & 0xff).unwrap_or('x');
+		if a == '_' && b.is_ascii_uppercase() && c.is_ascii_uppercase() &&
+			d.is_ascii_uppercase() {
+				true
+		} else {
+			false
+		}
+	}
+
+	/// Check if the message is a reply message
+	pub fn is_reply(&self) -> bool {
+		(self.header.flags & MESSAGE_FLAG_IS_REPLY) != 0
+	}
+
+	/// Check if this message was delivered through a messenger
+	pub fn was_delivered(&self) -> bool {
+		(self.header.flags & MESSAGE_FLAG_WAS_DELIVERED) != 0
+	}
+
+	/// Check if the source is waiting for a reply
+	pub fn is_source_waiting(&self) -> bool {
+		(self.header.flags & MESSAGE_FLAG_REPLY_REQUIRED) != 0
+			&& (self.header.flags & MESSAGE_FLAG_REPLY_DONE) != 0
+	}
+
+	/// Check if the source is another application than the current
+	pub fn is_source_remote(&self) -> bool {
+		// Compare the team id to the message team id. 
+		// The following code to get the team id could be extracted and made reusable
+		let team = unsafe {
+			let mut info: thread_info = zeroed();
+			let id = find_thread(ptr::null());
+			println!("id: {}", id);
+			let retval =  get_thread_info(id, &mut info);
+			println!("retval: {}", retval);
+			if get_thread_info(id, &mut info) != B_OK {
+				panic!("Cannot get the thread_info for the current thread")
+			}
+			info.team
+		};
+		println!("team: {}, reply_team: {}", team, self.header.reply_team);
+		(self.header.flags & MESSAGE_FLAG_WAS_DELIVERED) != 0
+			&& self.header.reply_team != team
 	}
 
 	fn hash_name(&self, name: &str) -> u32 {
@@ -381,12 +443,16 @@ fn test_message_flattening() {
 	let flattened_message = basic_message.flatten();
 	let comparison: Vec<u8> = vec!(72, 77, 70, 49, 100, 99, 98, 97, 1, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255);
 	assert_eq!(flattened_message, comparison);
+	assert!(!basic_message.is_reply());
+	assert!(!basic_message.is_source_remote());
 
 	// Second message
 	let constant: u32 = haiku_constant!('e', 'f', 'g', 'h');
 	let mut message_with_data = Message::new(constant);
+	assert!(message_with_data.is_empty());
 	message_with_data.add_data("UInt8", &('a' as u8));
 	message_with_data.add_data("UInt16", &(1234 as u16));
+	assert!(!message_with_data.is_empty());
 	let flattened_message = message_with_data.flatten();
 	let comparison: Vec<u8> = vec!(72, 77, 70, 49, 104, 103, 102, 101, 1, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 16, 0, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0, 1, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 3, 0, 6, 0, 84, 89, 66, 85, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 3, 0, 7, 0, 84, 72, 83, 85, 1, 0, 0, 0, 2, 0, 0, 0, 7, 0, 0, 0, 255, 255, 255, 255, 85, 73, 110, 116, 56, 0, 97, 85, 73, 110, 116, 49, 54, 0, 210, 4);
 	assert_eq!(flattened_message, comparison);
@@ -399,4 +465,15 @@ fn test_message_flattening() {
 	let comparison: Vec<u8> = vec!(72, 77, 70, 49, 97, 100, 110, 108, 1, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 52, 0, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 1, 0, 5, 0, 82, 84, 83, 67, 1, 0, 0, 0, 38, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 3, 0, 5, 0, 71, 78, 79, 76, 1, 0, 0, 0, 4, 0, 0, 0, 43, 0, 0, 0, 255, 255, 255, 255, 110, 97, 109, 101, 0, 34, 0, 0, 0, 97, 112, 112, 108, 105, 99, 97, 116, 105, 111, 110, 47, 120, 45, 118, 110, 100, 46, 104, 97, 105, 107, 117, 45, 114, 101, 103, 105, 115, 116, 114, 97, 114, 0, 117, 115, 101, 114, 0, 0, 0, 0, 0);
 	let flattened_message = app_data_message.flatten();
 	assert_eq!(flattened_message, comparison);
+}
+
+#[test]
+fn test_system_message() {
+	let system_constant: u32 = haiku_constant!('_','A','B','C');
+	let system_message = Message::new(system_constant);
+	assert!(system_message.is_system());
+
+	let other_constant: u32 = haiku_constant!('x','A','B','C');
+	let other_message = Message::new(other_constant);
+	assert!(!other_message.is_system());
 }

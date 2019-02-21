@@ -64,6 +64,8 @@ fn test_synchronous_message_sending() {
 	let port = Port::find("system:launch_daemon").unwrap();
 	let messenger = Messenger::from_port(&port).unwrap();
 	let response_message = messenger.send_and_wait_for_reply(app_data_message).unwrap();
+	assert!(response_message.is_reply());
+	assert!(response_message.is_source_remote());
 	println!("response_message: {:?}", response_message);
 	let port = response_message.find_data::<i32>("port", 0).unwrap();
 	println!("registrar port: {}", port);
