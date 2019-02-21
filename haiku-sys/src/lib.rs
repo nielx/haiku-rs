@@ -6,7 +6,7 @@
 #![allow(non_camel_case_types)]
 
 extern crate libc;
-use libc::{c_int, c_char, DIR, dirent, FILENAME_MAX, off_t, PATH_MAX, size_t, ssize_t};
+use libc::{c_char, c_int, c_void, DIR, dirent, FILENAME_MAX, off_t, PATH_MAX, size_t, ssize_t};
 use std::mem;
 
 #[macro_export]
@@ -65,6 +65,57 @@ extern {
 
 pub unsafe fn get_port_info(port: port_id, buf: &mut port_info) -> status_t {
 	_get_port_info(port, buf, mem::size_of::<port_info>() as size_t)
+}
+
+#[repr(C)]
+pub enum thread_state {
+	B_THREAD_RUNNING = 1,
+	B_THREAD_READY,
+	B_THREAD_RECEIVING,
+	B_THREAD_ASLEEP,
+	B_THREAD_SUSPENDED,
+	B_THREAD_WAITING
+}
+
+#[repr(C)]
+pub struct thread_info {
+	pub thread: thread_id,
+	pub team: team_id,
+	pub name: [c_char; B_OS_NAME_LENGTH],
+	pub state: thread_state,
+	pub priority: i32,
+	pub sem: sem_id,
+	pub user_time: bigtime_t,
+	pub kernel_time: bigtime_t,
+	pub stack_base: *mut c_void,
+	pub stack_end: *mut c_void
+}
+
+pub const B_IDLE_PRIORITY: i32 = 0;
+pub const B_LOWEST_ACTIVE_PRIORITY: i32 = 1;
+pub const B_LOW_PRIORITY: i32 = 5;
+pub const B_NORMAL_PRIORITY: i32 = 10;
+pub const B_DISPLAY_PRIORITY: i32 = 15;
+pub const B_URGENT_DISPLAY_PRIORITY: i32 = 20;
+pub const B_REAL_TIME_DISPLAY_PRIORITY: i32 = 100;
+pub const B_URGENT_PRIORITY: i32 = 110;
+pub const B_REAL_TIME_PRIORITY: i32 = 120;
+
+pub const B_SYSTEM_TIMEBASE: i32 = 0;
+pub const B_FIRST_REAL_TIME_PRIORITY: i32 = B_REAL_TIME_DISPLAY_PRIORITY;
+
+extern {
+	pub fn find_thread(name: *const c_char) -> thread_id;
+	pub fn _get_thread_info(id: thread_id, info: *mut thread_info, size: size_t) -> status_t;
+	pub fn _get_next_thread_info(id: thread_id, cookie: *mut i32, info: *mut thread_info, size: size_t) -> status_t;
+}
+
+pub unsafe fn get_thread_info(id: thread_id, info: *mut thread_info) -> status_t {
+	_get_thread_info(id, info, mem::size_of::<thread_info>() as size_t)
+}
+
+pub unsafe fn get_next_thread_info(id: thread_id, cookie: *mut i32, info: *mut thread_info) -> status_t {
+	_get_next_thread_info(id, cookie, info, mem::size_of::<thread_info>() as size_t)
 }
 
 
