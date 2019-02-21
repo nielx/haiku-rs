@@ -188,7 +188,7 @@ impl AttributeExt for File {
 
 		// Read the data
 		let attr_name = CString::new(descriptor.name).unwrap();
-		let mut len = if size > 0 {
+		let len = if size > 0 {
 			// Use the user-supplied size
 			size
 		} else {
@@ -297,7 +297,7 @@ mod test {
 		assert_eq!(attribute_data, attribute_data_higher_api);
 
 		// Read, write and remove data using the file attribute API
-		let mut temporary_file = tempfile::NamedTempFile::new().unwrap();
+		let temporary_file = tempfile::NamedTempFile::new().unwrap();
 		let file = temporary_file.as_file();
 		let string_data = String::from("attribute test data");
 		let int_data: u8 = 15;

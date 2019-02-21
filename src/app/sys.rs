@@ -4,6 +4,7 @@
 //
 
 #![allow(non_camel_case_types)]
+#![allow(dead_code)]
 
 use haiku_sys::{type_code, area_id, port_id, team_id};
 
