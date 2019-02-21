@@ -7,6 +7,7 @@ use std::{error, fmt, result, str};
 use std::ffi::CStr;
 
 use haiku_sys::status_t;
+use haiku_sys::errors::*;
 use libc::{c_int, c_char, size_t};
 
 pub type Result<T> = result::Result<T, HaikuError>;
@@ -100,7 +101,7 @@ impl HaikuError {
 	
 	pub fn kind(&self) -> ErrorKind {
 		match self.repr {
-			Repr::Os(_) => ErrorKind::Other,
+			Repr::Os(e) => decode_error_kind(e),
 			Repr::Simple(e) => e,
 			Repr::Custom(ref e) => e.kind
 		}
@@ -157,5 +158,19 @@ fn error_string(errno: status_t) -> String {
 		
 		let p = p as *const _;
 		str::from_utf8(CStr::from_ptr(p).to_bytes()).unwrap().to_owned()
+	}
+}
+
+fn decode_error_kind(errno: status_t) -> ErrorKind {
+	match errno {
+		B_BAD_INDEX => ErrorKind::InvalidInput,
+		B_BAD_TYPE => ErrorKind::InvalidInput,
+		B_BAD_VALUE => ErrorKind::InvalidInput,
+		B_MISMATCHED_VALUES => ErrorKind::InvalidInput,
+		B_NAME_NOT_FOUND => ErrorKind::NotFound,
+		B_NAME_IN_USE => ErrorKind::InvalidInput,
+		B_BAD_DATA => ErrorKind::InvalidData,
+		B_DONT_DO_THAT => ErrorKind::InvalidInput,
+		_ => ErrorKind::Other
 	}
 }
