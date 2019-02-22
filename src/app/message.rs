@@ -130,7 +130,77 @@ impl Message {
 			T::unflatten(&self.data[offset..offset+item_size])
 		}
 	}
-	
+
+	pub fn remove_field(&mut self, name: &str) -> Result<()> {
+		if self.header.message_area > 0 {
+			// Todo: implement support for messages with areas
+			unimplemented!()
+		}
+		let field_index = match self.find_field(name, B_ANY_TYPE) {
+			Some(index) => index,
+			None => return Err(HaikuError::from(ErrorKind::NotFound)),
+		};
+
+		// Get the pointers in the data stack
+		let offset = {
+			// Don't get a mutable field_header here just yet, as update_offsets
+			// needs mutable references
+			let field_header = self.fields.get(field_index).unwrap();
+			field_header.offset as usize
+		};
+		let end = {
+			// Don't get a mutable field_header here just yet, as update_offsets
+			// needs mutable references
+			let field_header = self.fields.get(field_index).unwrap();
+			offset + (field_header.name_length as u32 + field_header.data_size) as usize
+		};
+		let change: isize = (offset as isize) - (end as isize);
+
+		// Remove the data
+		let empty: [u8; 0] = [];
+		self.data.splice(offset..end, empty.iter().cloned());
+		self.update_offsets(offset, change);
+
+		//  Update the field indexes
+		// First store the index of the next field that the deleted field refers to
+		let next_field = {
+			let field_header = self.fields.get(field_index).unwrap();
+			let next = field_header.next_field;
+			if next > field_index as i32 {
+				next - 1
+			} else {
+				next
+			}
+		};
+		
+		// Then update the hash table
+		for i in 0..self.header.hash_table.len() {
+			if self.header.hash_table[i] > field_index as i32 {
+				self.header.hash_table[i] = self.header.hash_table[i] - 1;
+			} else if self.header.hash_table[i] == field_index as i32 {
+				self.header.hash_table[i] = next_field;
+			}
+		}
+		
+		// Update the indexes of each field
+		for field in self.fields.iter_mut() {
+			if field.next_field > field_index as i32 {
+				field.next_field = field.next_field as i32 - 1;
+			} else if field.next_field == field_index as i32 {
+				field.next_field = next_field;
+			}
+		}
+		
+		// Remove the field
+		self.fields.remove(field_index);
+		
+		// Update the header count
+		self.header.field_count = self.header.field_count - 1;
+		self.header.data_size = ((self.header.data_size as isize) + change) as u32;
+
+		Ok(())
+	}
+
 	/// Retrieve the type, the number of items and whether or not it is fixed data
 	///
 	/// This method returns a tuple consisting of the type_code, the number of items
@@ -433,6 +503,13 @@ fn test_message_add_and_remove() {
 
 	let flattened_message = message.flatten();
 	let comparison: Vec<u8> = vec!(72, 77, 70, 49, 100, 99, 98, 97, 1, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 46, 0, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 3, 0, 11, 0, 69, 84, 89, 66, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 11, 0, 82, 84, 83, 67, 2, 0, 0, 0, 22, 0, 0, 0, 13, 0, 0, 0, 255, 255, 255, 255, 112, 97, 114, 97, 109, 101, 116, 101, 114, 49, 0, 15, 51, 112, 97, 114, 97, 109, 101, 116, 101, 114, 50, 0, 7, 0, 0, 0, 118, 97, 108, 117, 101, 49, 0, 7, 0, 0, 0, 118, 97, 108, 117, 101, 50, 0);
+	assert_eq!(flattened_message, comparison);
+
+	message.add_data("parameter3", &(40 as i8));
+	assert!(message.remove_field("parameter1").is_ok());
+	assert!(message.remove_field("parameter3").is_ok());
+	let flattened_message = message.flatten();
+	let comparison: Vec<u8> = vec!(72, 77, 70, 49, 100, 99, 98, 97, 1, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 33, 0, 0, 0, 1, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 1, 0, 11, 0, 82, 84, 83, 67, 2, 0, 0, 0, 22, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 112, 97, 114, 97, 109, 101, 116, 101, 114, 50, 0, 7, 0, 0, 0, 118, 97, 108, 117, 101, 49, 0, 7, 0, 0, 0, 118, 97, 108, 117, 101, 50, 0);
 	assert_eq!(flattened_message, comparison);
 }
 
