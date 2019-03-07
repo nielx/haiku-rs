@@ -58,7 +58,6 @@ impl Message {
 			// Todo: implement support for messages with areas
 			unimplemented!()
 		}
-		
 		let result = self.find_field(name, T::type_code());
 		let field_index = match result {
 			Some(index) => index,
@@ -131,6 +130,68 @@ impl Message {
 		}
 	}
 
+	pub fn remove_data(&mut self, name: &str, index: usize) -> Result<()> {
+		if self.header.message_area > 0 {
+			// Todo: implement support for messages with areas
+			unimplemented!()
+		}
+
+		let field_index = match self.find_field(name, B_ANY_TYPE) {
+			Some(index) => index,
+			None => return Err(HaikuError::from(ErrorKind::NotFound)),
+		};
+
+		// Optimize this check, the check is done separately to beat the borrow checker
+		if index == 0 && self.fields.get(field_index).unwrap().count == 1 {
+				return self.remove_field(name);
+		}
+
+		// Do some calculations with the field header
+		let (offset, end) = {
+			let field_header = self.fields.get_mut(field_index).unwrap();
+			// Do some checks
+			if index as u32 >= field_header.count {
+				return Err(HaikuError::new(ErrorKind::InvalidInput, "Bad index"));
+			}
+
+			// Get the size and the offset
+			if (field_header.flags & FIELD_FLAG_FIXED_SIZE) != 0 {
+				let item_size: usize = (field_header.data_size / field_header.count) as usize;
+				let offset: usize = (field_header.offset + field_header.name_length as u32) as usize + index * item_size;
+				// Update the field header already
+				field_header.data_size -= item_size as u32;
+				field_header.count -= 1;
+				(offset, offset + item_size)
+			} else {
+				let mut offset: usize = (field_header.offset + field_header.name_length as u32) as usize;
+				let mut item_size: usize = 0;
+				for _ in 0..=index {
+					// this loop will set offset to the beginning of the data that we want to read.
+					// with index 0 it should at least skip the first 4 bytes (u32) that show the item size
+					offset += item_size;
+					item_size = u32::unflatten(&self.data[offset..offset+size_of::<u32>()]).unwrap() as usize;
+					offset += size_of::<u32>();
+				}
+				println!("offset: {}, size: {}", offset, item_size);
+
+				if item_size == 0 {
+					return Err(HaikuError::new(ErrorKind::InvalidData, "item size at index is garbage"));
+				}
+				// Update the field header already
+				field_header.data_size -= item_size as u32;
+				field_header.data_size -= size_of::<u32>() as u32;
+				field_header.count -= 1;
+				(offset - size_of::<u32>(), offset + item_size)
+			}
+		};
+		let empty: [u8; 0] = [];
+		self.data.splice(offset..end, empty.iter().cloned());
+		let change: isize = (offset as isize) - (end as isize);
+		self.update_offsets(offset, change);
+		self.header.data_size = ((self.header.data_size as isize) + change) as u32;
+		Ok(())
+	}
+
 	pub fn remove_field(&mut self, name: &str) -> Result<()> {
 		if self.header.message_area > 0 {
 			// Todo: implement support for messages with areas
@@ -161,7 +222,7 @@ impl Message {
 		self.data.splice(offset..end, empty.iter().cloned());
 		self.update_offsets(offset, change);
 
-		//  Update the field indexes
+		// Update the field indexes
 		// First store the index of the next field that the deleted field refers to
 		let next_field = {
 			let field_header = self.fields.get(field_index).unwrap();
@@ -510,6 +571,12 @@ fn test_message_add_and_remove() {
 	assert!(message.remove_field("parameter3").is_ok());
 	let flattened_message = message.flatten();
 	let comparison: Vec<u8> = vec!(72, 77, 70, 49, 100, 99, 98, 97, 1, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 33, 0, 0, 0, 1, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 1, 0, 11, 0, 82, 84, 83, 67, 2, 0, 0, 0, 22, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 112, 97, 114, 97, 109, 101, 116, 101, 114, 50, 0, 7, 0, 0, 0, 118, 97, 108, 117, 101, 49, 0, 7, 0, 0, 0, 118, 97, 108, 117, 101, 50, 0);
+	assert_eq!(flattened_message, comparison);
+	
+	message.add_data("parameter2", &String::from("value n+1 much longer"));
+	assert!(message.remove_data("parameter2", 1).is_ok());
+	let flattened_message = message.flatten();
+	let comparison: Vec<u8> =  vec!(72, 77, 70, 49, 100, 99, 98, 97, 1, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 48, 0, 0, 0, 1, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 1, 0, 11, 0, 82, 84, 83, 67, 2, 0, 0, 0, 37, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 112, 97, 114, 97, 109, 101, 116, 101, 114, 50, 0, 7, 0, 0, 0, 118, 97, 108, 117, 101, 49, 0, 22, 0, 0, 0, 118, 97, 108, 117, 101, 32, 110, 43, 49, 32, 109, 117, 99, 104, 32, 108, 111, 110, 103, 101, 114, 0);
 	assert_eq!(flattened_message, comparison);
 }
 
