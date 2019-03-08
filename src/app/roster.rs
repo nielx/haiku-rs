@@ -44,12 +44,20 @@ impl LaunchRoster {
 }
 
 
+/// This struct provides information about applications on the Haiku system
+///
+/// This struct should be accessed through the static `ROSTER` reference. It
+/// is automatically initialized to retrieve information from Haiku's
+/// registrar.
 pub struct Roster {
 	messenger: Messenger
 }
 
-
 impl Roster {
+	/// Get a list of teams that are currently running
+	///
+	/// If there is a problem connecting to the registrar, this method
+	/// will return None.
 	pub fn get_app_list(&self) -> Option<Vec<Team>> {
 		let request = Message::new(haiku_constant!('r','g','a','l'));
 		let response = self.messenger.send_and_wait_for_reply(request);
@@ -73,7 +81,11 @@ impl Roster {
 		}
 		return None;
 	}
-	
+
+	/// Get the information of a running application
+	///
+	/// If there is a problem connecting to the registrar, this method
+	/// will return None.
 	pub fn get_running_app_info(&self, team: &Team) -> Option<AppInfo> {
 		let mut request = Message::new(haiku_constant!('r','g','a','i'));
 		request.add_data("team", &team.get_team_id());
@@ -170,17 +182,35 @@ impl Flattenable<FlatAppInfo> for FlatAppInfo {
 }
 
 
+/// Contains the information about a running application
+///
+/// The information is provided by Haiku's registrar, and can be queried using
+/// the methods of the `ROSTER` object
 pub struct AppInfo {
+	/// The thread id for the main thread or -1 if the application is not
+	/// running
 	pub thread: thread_id,
+	/// The team id for the running instance or -1 if the application is not
+	/// running
 	pub team: team_id,
+	/// The port that is listening to Messages to be processed by the
+	/// application's main looper
 	pub port: port_id,
+	/// Any flags for this running application
+	///
+	/// Note that the flags are not yet implemented in this rust crate
 	pub flags: u32,
+	/// The path of the executable
 	pub path: String,
+	/// The mime type that represents the application's signature
 	pub signature: String,
 }
 
 
 lazy_static! {
+	/// The `ROSTER` gives access to a global `Roster` object that can be used
+	/// to communicate with Haiku's registrar that tracks all the running Haiku
+	/// applications.
 	pub static ref ROSTER: Roster = {
 		// Get a connection with the registrar
 		let roster_data = LaunchRoster::init().get_data("application/x-vnd.haiku-registrar").expect("Cannot connect to the Registrar!");
