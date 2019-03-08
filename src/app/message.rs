@@ -130,6 +130,61 @@ impl Message {
 		}
 	}
 
+	pub fn replace_data<T: Flattenable<T>>(&mut self, name: &str, index: usize, data: &T) -> Result<()> {
+		if self.header.message_area > 0 {
+			// Todo: implement support for messages with areas
+			unimplemented!()
+		}
+
+		let field_index = match self.find_field(name, T::type_code()) {
+			Some(index) => index,
+			None => return Err(HaikuError::from(ErrorKind::NotFound)),
+		};
+
+		let data_vec = data.flatten();
+
+		let (offset, change) = {
+			let field_header = self.fields.get_mut(field_index).unwrap();
+			// Do some checks
+			if index as u32 >= field_header.count {
+				return Err(HaikuError::new(ErrorKind::InvalidInput, "Bad index"));
+			}
+
+			if (field_header.flags & FIELD_FLAG_FIXED_SIZE) != 0 {
+				let item_size: usize = (field_header.data_size / field_header.count) as usize;
+				let offset: usize = (field_header.offset + field_header.name_length as u32) as usize + index * item_size;
+				self.data.splice(offset..(offset + item_size), data_vec.iter().cloned());
+				(offset, 0)
+			} else {
+				let mut offset: usize = (field_header.offset + field_header.name_length as u32) as usize;
+				let mut item_size: usize = 0;
+				for _ in 0..=index {
+					// this loop will set offset to the beginning of the data that we want to read.
+					// with index 0 it should at least skip the first 4 bytes (u32) that show the item size
+					offset += item_size;
+					item_size = u32::unflatten(&self.data[offset..offset+size_of::<u32>()]).unwrap() as usize;
+					offset += size_of::<u32>();
+				}
+				// replace the item size with the new item size
+				let new_data_size = data.flattened_size();
+				let data_size_vec = (new_data_size as u32).flatten();
+				self.data.splice((offset - size_of::<u32>())..offset, data_size_vec.iter().cloned());
+				// replace the data
+				self.data.splice(offset..(offset + item_size), data_vec.iter().cloned());
+				// update field header size
+				field_header.data_size = field_header.data_size - item_size as u32 + new_data_size as u32;
+				(offset, (offset - item_size + new_data_size) as isize)
+			}
+		};
+
+		if change != 0 {
+			self.update_offsets(offset, change);
+		}
+		// update header
+		self.header.data_size = self.data.len() as u32;
+		Ok(())
+	}
+
 	pub fn remove_data(&mut self, name: &str, index: usize) -> Result<()> {
 		if self.header.message_area > 0 {
 			// Todo: implement support for messages with areas
@@ -172,7 +227,6 @@ impl Message {
 					item_size = u32::unflatten(&self.data[offset..offset+size_of::<u32>()]).unwrap() as usize;
 					offset += size_of::<u32>();
 				}
-				println!("offset: {}, size: {}", offset, item_size);
 
 				if item_size == 0 {
 					return Err(HaikuError::new(ErrorKind::InvalidData, "item size at index is garbage"));
@@ -577,6 +631,33 @@ fn test_message_add_and_remove() {
 	assert!(message.remove_data("parameter2", 1).is_ok());
 	let flattened_message = message.flatten();
 	let comparison: Vec<u8> =  vec!(72, 77, 70, 49, 100, 99, 98, 97, 1, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 48, 0, 0, 0, 1, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 1, 0, 11, 0, 82, 84, 83, 67, 2, 0, 0, 0, 37, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 112, 97, 114, 97, 109, 101, 116, 101, 114, 50, 0, 7, 0, 0, 0, 118, 97, 108, 117, 101, 49, 0, 22, 0, 0, 0, 118, 97, 108, 117, 101, 32, 110, 43, 49, 32, 109, 117, 99, 104, 32, 108, 111, 110, 103, 101, 114, 0);
+	assert_eq!(flattened_message, comparison);
+}
+
+#[test]
+fn test_message_replace() {
+	let constant: u32 = haiku_constant!('q', 'w', 'e', 'r');
+	let mut message = Message::new(constant);
+	message.add_data("parameter1", &(159498393898 as i64));
+	message.add_data("parameter1", &(940030747479 as i64));
+	message.add_data("parameter1", &(573678299939 as i64));
+	message.add_data("parameter2", &String::from("str1"));
+	message.add_data("parameter2", &String::from("string2"));
+	message.add_data("parameter2", &String::from("string number 3"));
+	let flattened_message = message.flatten();
+	let comparison: Vec<u8> = vec!(72, 77, 70, 49, 114, 101, 119, 113, 1, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 87, 0, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 3, 0, 11, 0, 71, 78, 76, 76, 3, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 11, 0, 82, 84, 83, 67, 3, 0, 0, 0, 41, 0, 0, 0, 35, 0, 0, 0, 255, 255, 255, 255, 112, 97, 114, 97, 109, 101, 116, 101, 114, 49, 0, 42, 89, 216, 34, 37, 0, 0, 0, 87, 227, 50, 222, 218, 0, 0, 0, 35, 43, 228, 145, 133, 0, 0, 0, 112, 97, 114, 97, 109, 101, 116, 101, 114, 50, 0, 5, 0, 0, 0, 115, 116, 114, 49, 0, 8, 0, 0, 0, 115, 116, 114, 105, 110, 103, 50, 0, 16, 0, 0, 0, 115, 116, 114, 105, 110, 103, 32, 110, 117, 109, 98, 101, 114, 32, 51, 0);
+	assert_eq!(flattened_message, comparison);
+
+	// Replace data with fixed size
+	assert!(message.replace_data("parameter1", 1, &(-4939497933 as i64)).is_ok());
+	let flattened_message = message.flatten();
+	let comparison: Vec<u8> = vec!(72, 77, 70, 49, 114, 101, 119, 113, 1, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 87, 0, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 3, 0, 11, 0, 71, 78, 76, 76, 3, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 11, 0, 82, 84, 83, 67, 3, 0, 0, 0, 41, 0, 0, 0, 35, 0, 0, 0, 255, 255, 255, 255, 112, 97, 114, 97, 109, 101, 116, 101, 114, 49, 0, 42, 89, 216, 34, 37, 0, 0, 0, 51, 62, 149, 217, 254, 255, 255, 255, 35, 43, 228, 145, 133, 0, 0, 0, 112, 97, 114, 97, 109, 101, 116, 101, 114, 50, 0, 5, 0, 0, 0, 115, 116, 114, 49, 0, 8, 0, 0, 0, 115, 116, 114, 105, 110, 103, 50, 0, 16, 0, 0, 0, 115, 116, 114, 105, 110, 103, 32, 110, 117, 109, 98, 101, 114, 32, 51, 0);
+	assert_eq!(flattened_message, comparison);
+
+	// Replace data with variable size
+	assert!(message.replace_data("parameter2", 1, &String::from("longer string 2")).is_ok());
+	let flattened_message = message.flatten();
+	let comparison: Vec<u8> = vec!(72, 77, 70, 49, 114, 101, 119, 113, 1, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 95, 0, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 3, 0, 11, 0, 71, 78, 76, 76, 3, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 11, 0, 82, 84, 83, 67, 3, 0, 0, 0, 49, 0, 0, 0, 35, 0, 0, 0, 255, 255, 255, 255, 112, 97, 114, 97, 109, 101, 116, 101, 114, 49, 0, 42, 89, 216, 34, 37, 0, 0, 0, 51, 62, 149, 217, 254, 255, 255, 255, 35, 43, 228, 145, 133, 0, 0, 0, 112, 97, 114, 97, 109, 101, 116, 101, 114, 50, 0, 5, 0, 0, 0, 115, 116, 114, 49, 0, 16, 0, 0, 0, 108, 111, 110, 103, 101, 114, 32, 115, 116, 114, 105, 110, 103, 32, 50, 0, 16, 0, 0, 0, 115, 116, 114, 105, 110, 103, 32, 110, 117, 109, 98, 101, 114, 32, 51, 0);
 	assert_eq!(flattened_message, comparison);
 }
 
