@@ -21,8 +21,6 @@ use ::support::{ErrorKind, Flattenable, HaikuError, Result};
 /// Like in the Haiku C++ API, the message is identified by the `what` value.
 /// This one can be accessed directly.
 pub struct Message {
-	/// A 32 bit integer that gives a signature to the message
-	pub what: u32,
 	pub(crate) header: message_header,
 	fields: Vec<field_header>,
 	data: Vec<u8>
@@ -32,7 +30,6 @@ impl Message {
 	/// Create a new message with the signature `what`
 	pub fn new(what: u32) -> Self {
 		Message {
-			what: what,
 			header: message_header{
 				message_format: MESSAGE_FORMAT_HAIKU,
 				flags: MESSAGE_FLAG_VALID,
@@ -51,6 +48,14 @@ impl Message {
 			fields: Vec::new(),
 			data: Vec::new()
 		}
+	}
+
+	pub fn what(&self) -> u32 {
+		self.header.what
+	}
+
+	pub fn set_what(&mut self, what: u32) {
+		self.header.what = what;
 	}
 
 	pub fn add_data<T: Flattenable<T>>(&mut self, name: &str, data: &T) {
@@ -341,10 +346,10 @@ impl Message {
 	/// Because of this fact it is advised not to give your message codes
 	/// this structure.
 	pub fn is_system(&self) -> bool {
-		let a: char = char::from_u32((self.what >> 24) & 0xff).unwrap_or('x');
-		let b: char = char::from_u32((self.what >> 16) & 0xff).unwrap_or('x');
-		let c: char = char::from_u32((self.what >> 8) & 0xff).unwrap_or('x');
-		let d: char = char::from_u32(self.what & 0xff).unwrap_or('x');
+		let a: char = char::from_u32((self.what() >> 24) & 0xff).unwrap_or('x');
+		let b: char = char::from_u32((self.what() >> 16) & 0xff).unwrap_or('x');
+		let c: char = char::from_u32((self.what() >> 8) & 0xff).unwrap_or('x');
+		let d: char = char::from_u32(self.what() & 0xff).unwrap_or('x');
 		if a == '_' && b.is_ascii_uppercase() && c.is_ascii_uppercase() &&
 			d.is_ascii_uppercase() {
 				true
@@ -548,7 +553,6 @@ impl Flattenable<Message> for Message {
 		let header_ref: &message_header = unsafe { &*header_ptr };
 
 		let mut msg = Message{
-			what: header_ref.what,
 			header: header_ref.clone(),
 			fields: Vec::new(),
 			data: Vec::new()
@@ -579,7 +583,7 @@ impl Flattenable<Message> for Message {
 impl fmt::Debug for Message {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		// TODO: make this mirror BMessage::PrintToStream()
-		let chars = unsafe { transmute_copy::<u32, [u8; 4]>(&self.what) };
+		let chars = unsafe { transmute_copy::<u32, [u8; 4]>(&self.what()) };
 		let mut print_chars = true;
 		for ch in chars.iter() {
 			if !(*ch as char).is_ascii_graphic() {
@@ -591,7 +595,7 @@ impl fmt::Debug for Message {
 		let result = if print_chars {
 			write!(f, "BMessage: ({:?})", (chars[3] as char, chars[2] as char, chars[1] as char, chars[0] as char))
 		} else {
-			write!(f, "BMessage: ({})", self.what)
+			write!(f, "BMessage: ({})", self.what())
 		};
 		
 		if self.fields.len() > 0 {

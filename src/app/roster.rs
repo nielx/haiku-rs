@@ -59,7 +59,7 @@ impl Roster {
 		}
 
 		let response = response.unwrap();
-		if response.what == haiku_constant!('r','g','s','u') {
+		if response.what() == haiku_constant!('r','g','s','u') {
 			let count = match response.get_info("teams") {
 				Some(info) => info.1,
 				None => return None
@@ -84,7 +84,7 @@ impl Roster {
 		}
 		
 		let response = response.unwrap();
-		if response.what == haiku_constant!('r','g','s','u') {
+		if response.what() == haiku_constant!('r','g','s','u') {
 			let flat_app_info = response.find_data::<FlatAppInfo>("app_info", 0).unwrap();
 			return Some(flat_app_info.to_app_info());
 		}
