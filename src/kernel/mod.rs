@@ -358,23 +358,6 @@ pub(crate) mod helpers {
 	}
 }
 				
-
-
-// Todo: legacy code, this should be moved to haiku-sys
-pub mod file_open_mode_constants {
-	use libc::c_int;
-	
-	pub const B_READ_ONLY: c_int = 0x0000;
-	pub const B_WRITE_ONLY: c_int = 0x0001;
-	pub const B_READ_WRITE: c_int = 0x0002;
-	
-	pub const B_FAIL_IF_EXISTS: c_int = 0x0100;
-	pub const B_CREATE_FILE: c_int = 0x0200;
-	pub const B_ERASE_FILE: c_int = 0x0400;
-	pub const B_OPEN_AT_END: c_int = 0x0800;
-}
-
-
 pub fn debugger(message: &str) {
 	use libc::c_char;
 	use std::ffi::CString;
