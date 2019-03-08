@@ -10,8 +10,17 @@ use haiku_sys::status_t;
 use haiku_sys::errors::*;
 use libc::{c_int, c_char, size_t};
 
+/// This is a shortened version for a standard Rust result that returns a
+/// Haiku error.
+///
+/// It is used throughout the API, except for the storage kit, which reuses
+/// the `std::io::Result` type.
 pub type Result<T> = result::Result<T, HaikuError>;
 
+/// This struct represents an Error for using this API
+///
+/// The error is very much based on the standard library's `std::io::Error`,
+/// and roughly has the same usage and functionality. 
 pub struct HaikuError {
 	repr: Repr,
 }
@@ -35,10 +44,24 @@ struct Custom {
 }
 
 #[derive(Clone, Copy, Debug)]
+/// The kind of error that occured
+///
+/// Note that this list is not complete, there might be more error kinds added
+/// in the future.
 pub enum ErrorKind {
+	/// This error is returned if the function cannot return valid data, for
+	/// example due to a system error.
 	InvalidData,
+	/// This error tells that the user is supplying parameters that are not
+	/// valid.
 	InvalidInput,
+	/// This error is returned when one of the parameters of the function call
+	/// refers to something that does not/no longer exists.
 	NotFound,
+	/// This leftover category is for any other error.
+	///
+	/// Sometimes a lower level system error is not properly mapped to a higher
+	/// level error. This might be corrected in future versions of the crate.
 	Other,
 }
 
@@ -54,6 +77,7 @@ impl ErrorKind {
 }
 
 impl From<ErrorKind> for HaikuError {
+	/// This is a shortcut to create a simple error based on an `ErrorKind`.
 	fn from(kind: ErrorKind) -> HaikuError {
 		HaikuError {
 			repr: Repr::Simple(kind)
@@ -62,12 +86,15 @@ impl From<ErrorKind> for HaikuError {
 }
 
 impl HaikuError {
+	/// Create a new error with a `kind`, and a custom payload. The most
+	/// common use is to attach a `String` that describes the error, but any
+	/// struct that implements the `std::error::Error` trait will work.
 	pub fn new<E>(kind: ErrorKind, error: E) -> HaikuError
 		where E: Into<Box<dyn error::Error+Send+Sync>>
 	{
 		Self::_new(kind, error.into())
 	}
-	
+
 	fn _new(kind: ErrorKind, error: Box<dyn error::Error+Send+Sync>) -> HaikuError
 	{
 		HaikuError {
@@ -77,7 +104,11 @@ impl HaikuError {
 			}))
 		}
 	}
-	
+
+	/// Create a new error based on the last OS Error.
+	///
+	/// This function can be used to create an error after calling OS functions
+	/// that set the global error number on failure.
 	pub fn last_os_error() -> HaikuError {
 		// Get the last OS Error
 		extern {
@@ -87,10 +118,12 @@ impl HaikuError {
 		HaikuError::from_raw_os_error(error)
 	}
 
+	/// Convert a raw error constant to a `HaikuError` object
 	pub fn from_raw_os_error(code: status_t) -> HaikuError {
 		HaikuError { repr: Repr::Os(code) }
 	}
-	
+
+	/// Convert the current error into a (lower level) Haiku error constant
 	pub fn raw_os_error(&self) -> Option<status_t> {
 		match self.repr {
 			Repr::Os(i) => Some(i),
@@ -98,7 +131,8 @@ impl HaikuError {
 			Repr::Custom(_) => None
 		}
 	}
-	
+
+	/// Get the `ErrorKind` for the current error
 	pub fn kind(&self) -> ErrorKind {
 		match self.repr {
 			Repr::Os(e) => decode_error_kind(e),
