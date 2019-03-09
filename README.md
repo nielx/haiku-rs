@@ -1,6 +1,6 @@
-# Rust bindings for the Haiku API
+# Rust implementation of the Haiku API
 
-The goal of this package is to provide access to the C-style functions of the
+The goal of this crate is to provide a Rust implementation of the
 Haiku API. These functions can mostly be classified as low-level functions,
 which can be (mostly) found in the kernel kit. Where it makes sense, a higher
 level API is implemented which uses more advanced rust language constructs.
@@ -9,21 +9,10 @@ level API is implemented which uses more advanced rust language constructs.
 
 Using `cargo build` should do the trick!
 
-## Using the library
+## Using the crate
 
-Right now the library is so small that it makes little sense to dynamically
-link it in your own projects. Therefore statically linking against
-`libhaiku.rlib` is fine. 
-
-In order to link against this library, you need to specify the crate in your
-source file:
-
-    ```
-    extern crate haiku;
-    ```
-
-Using the `rustc -L <path_to_libhaiku> <main source file>` you can make the
-compiler find the crate. 
+This crate is published on crates.io and can be used by adding it as a
+dependency in your `Cargo.toml` file. 
 
 ## What is implemented
 
@@ -31,6 +20,8 @@ Currently the following kernel interfaces are implemented:
 
 * Attribute functions
 * Debugger (the call, not the interface)
+* File attributes
+* Messaging
 * Ports
 
 ## What is still to be done
@@ -43,6 +34,7 @@ Currently the following kernel interfaces are implemented:
 * FS Info
 * FS Query
 * FS Volume
+* More access to the Registrar
 
 ## What probably will never be done
 

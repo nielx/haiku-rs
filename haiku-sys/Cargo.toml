@@ -2,6 +2,13 @@
 name = "haiku-sys"
 version = "0.1.0"
 authors = ["Niels Sascha Reedijk <niels.reedijk@gmail.com>"]
+description = """
+Bindings to the low-level C-API on Haiku
+"""
+repository = "https://github.com/nielx/haiku-rs"
+homepage = "https://haiku-os.org/"
+categories = ["external-ffi-bindings", "os"]
+license = "MIT"
 
 [dependencies]
-libc = "0.2.41"
+libc = "0.2.48"
