@@ -49,6 +49,9 @@ struct Custom {
 /// Note that this list is not complete, there might be more error kinds added
 /// in the future.
 pub enum ErrorKind {
+	/// An operation was (prematurely) interrupted by another system event.
+	/// Usually, you can retry the operation in these instances.
+	Interrupted,
 	/// This error is returned if the function cannot return valid data, for
 	/// example due to a system error.
 	InvalidData,
@@ -68,6 +71,7 @@ pub enum ErrorKind {
 impl ErrorKind {
 	pub(crate) fn as_str(&self) -> &'static str {
 		match *self {
+			ErrorKind::Interrupted => "interrupted",
 			ErrorKind::InvalidData => "invalid data",
 			ErrorKind::InvalidInput => "invalid input parameter",
 			ErrorKind::NotFound => "entity not found",
@@ -200,6 +204,7 @@ fn decode_error_kind(errno: status_t) -> ErrorKind {
 		B_BAD_INDEX => ErrorKind::InvalidInput,
 		B_BAD_TYPE => ErrorKind::InvalidInput,
 		B_BAD_VALUE => ErrorKind::InvalidInput,
+		B_INTERRUPTED => ErrorKind::Interrupted,
 		B_MISMATCHED_VALUES => ErrorKind::InvalidInput,
 		B_NAME_NOT_FOUND => ErrorKind::NotFound,
 		B_NAME_IN_USE => ErrorKind::InvalidInput,
