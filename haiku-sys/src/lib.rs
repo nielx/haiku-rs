@@ -242,7 +242,7 @@ pub mod errors {
 	pub const B_NAME_NOT_FOUND: status_t = B_GENERAL_ERROR_BASE + 7;
 	pub const B_NAME_IN_USE: status_t = B_GENERAL_ERROR_BASE + 8;
 	pub const B_TIMED_OUT: status_t = B_GENERAL_ERROR_BASE + 9;
-	pub const B_INTERRUPED: status_t = B_GENERAL_ERROR_BASE + 10;
+	pub const B_INTERRUPTED: status_t = B_GENERAL_ERROR_BASE + 10;
 	pub const B_WOULD_BLOCK: status_t = B_GENERAL_ERROR_BASE + 11;
 	pub const B_CANCELED: status_t = B_GENERAL_ERROR_BASE + 12;
 	pub const B_NO_INIT: status_t = B_GENERAL_ERROR_BASE + 13;
