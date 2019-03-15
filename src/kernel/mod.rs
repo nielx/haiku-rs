@@ -265,6 +265,20 @@ pub mod ports {
 			}
 		}
 		
+		/// Get the port count
+		///
+		/// This returns the number of items that are waiting to be processed.
+		pub fn get_count(&self) -> Result<usize> {
+			let status = unsafe {
+				port_count(self.port)
+			};
+			if status < 0 {
+				Err(HaikuError::from_raw_os_error(status as i32))
+			} else {
+				Ok(status as usize)
+			}
+		}
+		
 		/// Get the port info
 		pub fn get_info(&self) -> Result<PortInfo> {
 			let mut info: port_info = unsafe { mem::zeroed() };
@@ -328,6 +342,10 @@ pub mod teams {
 	}
 }
 
+use std::time::Duration;
+/// An infinite timeout
+pub const INFINITE_TIMEOUT: Duration = Duration::from_micros(i64::max_value() as u64);
+
 // Helpers for this crate only
 pub(crate) mod helpers {
 	use std::ffi::CStr;
@@ -377,6 +395,7 @@ fn test_basic_port() {
 	let port_data = b"testdata for port\n";
 	let port_code: i32 = 47483658;
 	port.write(port_code, port_data).unwrap();
+	assert_eq!(port.get_count().unwrap(), 1);
 	let (read_code, read_data) = port.read().unwrap();
 	assert_eq!(port_code, read_code);
 	assert_eq!(port_data.len(), read_data.len());
