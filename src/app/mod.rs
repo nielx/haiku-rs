@@ -7,11 +7,16 @@
 //! communicate with other applications and services
 
 
+mod application;
+mod looper;
 mod message;
 mod messenger;
 mod roster;
+// pub(crate) mod serverlink;
 pub(crate) mod sys;
 
+pub use self::application::{Application};
+pub use self::looper::{Handler, Looper};
 pub use self::message::Message;
 pub use self::messenger::Messenger;
 pub use self::roster::{ROSTER, AppInfo, Roster};
