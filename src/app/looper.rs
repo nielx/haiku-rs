@@ -9,27 +9,24 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use ::app::{Message, Messenger};
+use ::app::{Context, Message, Messenger};
 use ::kernel::ports::Port;
 use ::kernel::INFINITE_TIMEOUT;
 use ::support::{ErrorKind, Flattenable, HaikuError, Result};
 
-pub trait Handler {
-	type ConcreteLooper;
-	
-	fn message_received(&mut self, looper: &ConcreteLooper, message: &Message);
+pub trait Handler<A> where A: Send + 'static {
+	fn message_received(&mut self, context: &Context<A>, message: &Message);
 }
 
-pub struct Looper<A, T> where T: Handler + Send + 'static, A: Send + 'static {
+pub struct Looper<A, T> where T: Handler<A> + Send + 'static, A: Send + 'static {
 	pub(crate) state: Box<T>,
 	pub(crate) name: String,
 	pub(crate) port: Port,
 	pub(crate) message_queue: VecDeque<Message>,
-	pub application_messenger: Messenger,
-	pub application_state: Arc<Mutex<A>>
+	pub(crate) context: Context<A>
 }
 
-impl<A, T> Looper<A, T> where T: Handler + Send, A: Send + 'static {	
+impl<A, T> Looper<A, T> where T: Handler<A> + Send, A: Send + 'static {
 	pub fn name(&self) -> &str {
 		&self.name
 	}
@@ -38,7 +35,7 @@ impl<A, T> Looper<A, T> where T: Handler + Send, A: Send + 'static {
 		Messenger::from_port(&self.port).unwrap()
 	}
 	
-	pub fn start_looper(mut self) -> Result<()> {
+	pub fn run(mut self) -> Result<()> {
 		let child = thread::spawn(move || {
 			println!("Running looper {}", &self.name());
 			self.looper_task();
@@ -87,7 +84,7 @@ impl<A, T> Looper<A, T> where T: Handler + Send, A: Send + 'static {
 					
 					// Todo: support handler tokens and targeting
 					
-					self.state.message_received(&message);
+					self.state.message_received(&self.context, &message);
 				}
 				
 				// Todo: check if the looper should terminate

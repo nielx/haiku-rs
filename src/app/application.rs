@@ -12,12 +12,12 @@ use ::kernel::ports::Port;
 
 const LOOPER_PORT_DEFAULT_CAPACITY: i32 = 200;
 
-pub struct Application<A> where A: Handler + Send + 'static {
+pub struct Application<A> where A: Handler<A> + Send + 'static {
 	state: Arc<Mutex<A>>,
 	port: Port
 }
 
-impl<A> Application<A> where A: Handler + Send{
+impl<A> Application<A> where A: Handler<A> + Send{
 	pub fn new(initial_state: A) -> Self {
 		Self {
 			state: Arc::new(Mutex::new(initial_state)),
@@ -26,17 +26,25 @@ impl<A> Application<A> where A: Handler + Send{
 	}
 
 	pub fn create_looper<L>(&mut self, name: &str, initial_state: Box<L>) -> Looper<A, L>
-		where L: Handler + Send + 'static 
+		where L: Handler<A> + Send + 'static
 	{
+		let context = Context {
+			application_messenger: Messenger::from_port(&self.port).unwrap(),
+			application_state: self.state.clone()
+		};
 		Looper {
 			state: initial_state,
 			name: String::from(name),
 			port: Port::create(name, LOOPER_PORT_DEFAULT_CAPACITY).unwrap(),
 			message_queue: VecDeque::new(),
-			application_messenger: Messenger::from_port(&self.port).unwrap(),
-			application_state: self.state.clone()
+			context: context
 		}
 	}
+}
+
+pub struct Context<A> where A: Send {
+	pub application_messenger: Messenger,
+	pub application_state: Arc<Mutex<A>>
 }
 
 #[cfg(test)]
@@ -48,8 +56,8 @@ mod tests {
 		count: u32
 	}
 	
-	impl Handler for CountLooperState {
-		fn message_received(&mut self, message: &Message) {
+	impl Handler<ApplicationState> for CountLooperState {
+		fn message_received(&mut self, context: &Context<ApplicationState>, message: &Message) {
 			println!("{}", message.what());
 		}
 	}
@@ -58,8 +66,8 @@ mod tests {
 		total_count: u32
 	}
 	
-	impl Handler for ApplicationState {
-		fn message_received(&mut self, message: &Message) {
+	impl Handler<ApplicationState> for ApplicationState {
+		fn message_received(&mut self, context: &Context<ApplicationState>, message: &Message) {
 			println!("application: {}", message.what());
 		}
 	}
@@ -76,8 +84,8 @@ mod tests {
 		let messenger_1 = looper_1.get_messenger();
 		let looper_2 = application.create_looper("looper 2", looper_state_2);
 		let messenger_2 = looper_2.get_messenger();
-		assert!(looper_1.start_looper().is_ok());
-		assert!(looper_2.start_looper().is_ok());
+		assert!(looper_1.run().is_ok());
+		assert!(looper_2.run().is_ok());
 		let mut message = Message::new(1234);
 		messenger_1.send_and_ask_reply(message, &messenger_2);
 		let mut message = Message::new(5678);
