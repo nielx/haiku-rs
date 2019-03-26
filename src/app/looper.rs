@@ -5,7 +5,6 @@
 
 use std::collections::VecDeque;
 use std::marker::Send;
-use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
@@ -18,15 +17,15 @@ pub trait Handler<A> where A: Send + 'static {
 	fn message_received(&mut self, context: &Context<A>, message: &Message);
 }
 
-pub struct Looper<A, T> where T: Handler<A> + Send + 'static, A: Send + 'static {
-	pub(crate) state: Box<T>,
+pub struct Looper<A> where A: Send + 'static {
 	pub(crate) name: String,
 	pub(crate) port: Port,
 	pub(crate) message_queue: VecDeque<Message>,
+	pub(crate) handlers: Vec<Box<dyn Handler<A> + Send>>,
 	pub(crate) context: Context<A>
 }
 
-impl<A, T> Looper<A, T> where T: Handler<A> + Send, A: Send + 'static {
+impl<A> Looper<A> where A: Send + 'static {
 	pub fn name(&self) -> &str {
 		&self.name
 	}
@@ -84,7 +83,9 @@ impl<A, T> Looper<A, T> where T: Handler<A> + Send, A: Send + 'static {
 					
 					// Todo: support handler tokens and targeting
 					
-					self.state.message_received(&self.context, &message);
+					for handler in self.handlers.iter_mut() {
+						handler.message_received(&self.context, &message);
+					}
 				}
 				
 				// Todo: check if the looper should terminate

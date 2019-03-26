@@ -25,21 +25,20 @@ impl<A> Application<A> where A: Handler<A> + Send{
 		}
 	}
 
-	pub fn create_looper<L>(&mut self, name: &str, initial_state: Box<L>) -> Looper<A, L>
-		where L: Handler<A> + Send + 'static
+	pub fn create_looper(&mut self, name: &str, initial_handler: Box<dyn Handler<A> + Send>) -> Looper<A>
 	{
 		let context = Context {
 			application_messenger: Messenger::from_port(&self.port).unwrap(),
 			application_state: self.state.clone()
 		};
 		Looper {
-			state: initial_state,
 			name: String::from(name),
 			port: Port::create(name, LOOPER_PORT_DEFAULT_CAPACITY).unwrap(),
 			message_queue: VecDeque::new(),
+			handlers: vec![initial_handler],
 			context: context
 		}
-	}
+	}		
 }
 
 pub struct Context<A> where A: Send {
@@ -77,7 +76,7 @@ mod tests {
 		let looper_state_1 = Box::new(CountLooperState{ count: 0 });
 		let looper_state_2 = Box::new(CountLooperState{ count: 0 });
 		let application_state = ApplicationState{ total_count: 0 };
-		
+
 		let mut application = Application::new(application_state);
 
 		let looper_1 = application.create_looper("looper 1", looper_state_1);
@@ -90,5 +89,7 @@ mod tests {
 		messenger_1.send_and_ask_reply(message, &messenger_2);
 		let mut message = Message::new(5678);
 		messenger_1.send_and_ask_reply(message, &messenger_2);
+
+		
 	}
 }
