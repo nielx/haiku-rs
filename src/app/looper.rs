@@ -14,7 +14,7 @@ use ::kernel::INFINITE_TIMEOUT;
 use ::support::{ErrorKind, Flattenable, HaikuError, Result};
 
 pub trait Handler<A> where A: Send + 'static {
-	fn message_received(&mut self, context: &Context<A>, message: &Message);
+	fn message_received(&mut self, context: &mut Context<A>, message: &Message);
 }
 
 pub struct Looper<A> where A: Send + 'static {
@@ -84,7 +84,7 @@ impl<A> Looper<A> where A: Send + 'static {
 					// Todo: support handler tokens and targeting
 					
 					for handler in self.handlers.iter_mut() {
-						handler.message_received(&self.context, &message);
+						handler.message_received(&mut self.context, &message);
 					}
 				}
 				

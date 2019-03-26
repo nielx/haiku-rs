@@ -6,29 +6,45 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
-use ::app::{Handler, Messenger};
+use ::app::{Handler, Message, Messenger};
 use ::app::looper::Looper;
 use ::kernel::ports::Port;
+use ::support::Result;
 
 const LOOPER_PORT_DEFAULT_CAPACITY: i32 = 200;
 
-pub struct Application<A> where A: Handler<A> + Send + 'static {
+pub struct Application<A> where A: Send + 'static {
 	state: Arc<Mutex<A>>,
-	port: Port
+	inner_looper: Looper<A>
 }
 
-impl<A> Application<A> where A: Handler<A> + Send{
+impl<A> Application<A> where A: Send {
 	pub fn new(initial_state: A) -> Self {
+		// Set up some defaults
+		let port = Port::create("application", LOOPER_PORT_DEFAULT_CAPACITY).unwrap();
+		let state = Arc::new(Mutex::new(initial_state));
+		let context = Context {
+			application_messenger: Messenger::from_port(&port).unwrap(),
+			application_state: state.clone()
+		};
+		let inner_looper = Looper {
+			name: String::from("application"),
+			port: port,
+			message_queue: VecDeque::new(),
+			handlers: Vec::new(),
+			context: context
+		};
+		
 		Self {
-			state: Arc::new(Mutex::new(initial_state)),
-			port: Port::create("application", LOOPER_PORT_DEFAULT_CAPACITY).unwrap(),
+			state: state,
+			inner_looper: inner_looper,
 		}
 	}
 
 	pub fn create_looper(&mut self, name: &str, initial_handler: Box<dyn Handler<A> + Send>) -> Looper<A>
 	{
 		let context = Context {
-			application_messenger: Messenger::from_port(&self.port).unwrap(),
+			application_messenger: self.inner_looper.get_messenger(),
 			application_state: self.state.clone()
 		};
 		Looper {
@@ -38,7 +54,13 @@ impl<A> Application<A> where A: Handler<A> + Send{
 			handlers: vec![initial_handler],
 			context: context
 		}
-	}		
+	}
+	
+	pub fn run(&mut self) -> Result<()> {
+		println!("Running application looper!");
+		self.inner_looper.looper_task();
+		Ok(())
+	}
 }
 
 pub struct Context<A> where A: Send {
@@ -56,7 +78,7 @@ mod tests {
 	}
 	
 	impl Handler<ApplicationState> for CountLooperState {
-		fn message_received(&mut self, context: &Context<ApplicationState>, message: &Message) {
+		fn message_received(&mut self, context: &mut Context<ApplicationState>, message: &Message) {
 			println!("{}", message.what());
 		}
 	}
@@ -66,7 +88,7 @@ mod tests {
 	}
 	
 	impl Handler<ApplicationState> for ApplicationState {
-		fn message_received(&mut self, context: &Context<ApplicationState>, message: &Message) {
+		fn message_received(&mut self, context: &mut Context<ApplicationState>, message: &Message) {
 			println!("application: {}", message.what());
 		}
 	}
@@ -89,7 +111,5 @@ mod tests {
 		messenger_1.send_and_ask_reply(message, &messenger_2);
 		let mut message = Message::new(5678);
 		messenger_1.send_and_ask_reply(message, &messenger_2);
-
-		
 	}
 }
