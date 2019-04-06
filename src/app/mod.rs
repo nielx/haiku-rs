@@ -15,8 +15,11 @@ mod roster;
 // pub(crate) mod serverlink;
 pub(crate) mod sys;
 
-pub use self::application::{Application, Context};
+pub use self::application::{Application, ApplicationHooks, Context};
 pub use self::looper::{Handler, Looper};
 pub use self::message::Message;
 pub use self::messenger::Messenger;
 pub use self::roster::{ROSTER, AppInfo, Roster};
+
+pub const B_QUIT_REQUESTED: u32 = haiku_constant!('_','Q','R','Q');
+pub const QUIT: u32 = haiku_constant!('_','Q','I','T');

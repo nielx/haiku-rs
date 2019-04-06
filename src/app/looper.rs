@@ -8,24 +8,26 @@ use std::marker::Send;
 use std::thread;
 use std::time::Duration;
 
-use ::app::{Context, Message, Messenger};
+use ::app::{Context, Message, Messenger, B_QUIT_REQUESTED, QUIT};
 use ::kernel::ports::Port;
 use ::kernel::INFINITE_TIMEOUT;
 use ::support::{ErrorKind, Flattenable, HaikuError, Result};
 
 pub trait Handler<A> where A: Send + 'static {
-	fn message_received(&mut self, context: &mut Context<A>, message: &Message);
+	fn message_received(&mut self, context: &Context<A>, message: &Message);
 }
 
 pub struct Looper<A> where A: Send + 'static {
 	pub(crate) name: String,
 	pub(crate) port: Port,
 	pub(crate) message_queue: VecDeque<Message>,
-	pub(crate) handlers: Vec<Box<dyn Handler<A> + Send>>,
-	pub(crate) context: Context<A>
+//	pub(crate) handlers: Vec<Box<dyn Handler<A> + Send>>,
+	pub(crate) context: Context<A>,
+	pub(crate) state: Box<dyn Handler<A> + Send>,
+	pub(crate) terminating: bool
 }
 
-impl<A> Looper<A> where A: Send + 'static {
+impl<A> Looper<A> where A: Send + 'static {	
 	pub fn name(&self) -> &str {
 		&self.name
 	}
@@ -41,7 +43,7 @@ impl<A> Looper<A> where A: Send + 'static {
 		});
 		Ok(())
 	}
-	
+
 	pub(crate) fn looper_task(&mut self) {
 		loop {
 			println!("outer loop");
@@ -55,7 +57,7 @@ impl<A> Looper<A> where A: Send + 'static {
 					continue;
 				}
 			}
-			
+
 			// Fetch next messages
 			let message_count = self.port.get_count().unwrap();
 			for _ in 0..message_count {
@@ -68,11 +70,11 @@ impl<A> Looper<A> where A: Send + 'static {
 					}
 				}
 			}
-			
+
 			// Handle messages, until we have new messages waiting in the
 			// queue, this is the inner loop
 			let mut dispatch_next_message = true;
-			while dispatch_next_message {
+			while dispatch_next_message && ! self.terminating {
 				let message = self.message_queue.pop_front();
 				
 				if message.is_none() {
@@ -81,14 +83,23 @@ impl<A> Looper<A> where A: Send + 'static {
 					let message = message.unwrap();
 					println!("Handling message {:?}", message);
 					
-					// Todo: support handler tokens and targeting
+					match message.what() {
+						B_QUIT_REQUESTED => {},
+						QUIT => { self.terminating = true; },
+						_ => {
+							// Todo: support handler tokens and targeting
 					
-					for handler in self.handlers.iter_mut() {
-						handler.message_received(&mut self.context, &message);
+		//					for handler in self.handlers.iter_mut() {
+		//						handler.message_received(&self.context, &message);
+		//					}
+							self.state.message_received(&self.context, &message);
+						}
 					}
 				}
-				
-				// Todo: check if the looper should terminate
+
+				if self.terminating {
+					break;
+				}
 				
 				match self.port.get_count() {
 					Ok(count) => {
@@ -99,9 +110,11 @@ impl<A> Looper<A> where A: Send + 'static {
 					Err(e) => println!("Error getting the port count: {:?}", e)
 				}
 			}
-	
-			println!("ending now");
-			break;
+			if self.terminating {
+				println!("terminating looper");
+				break;
+			}
+			println!("at the end of the outer loop");
 		}
 	}
 
@@ -116,3 +129,11 @@ impl<A> Looper<A> where A: Send + 'static {
 		}
 	}
 }
+
+//pub struct LooperDelegate{
+//	messenger: Messenger
+//}
+//
+//impl LooperDelegate {
+//	pub fn quit(&mut self) {
+//		self.messenger.
