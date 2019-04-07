@@ -13,6 +13,7 @@ use std::str;
 use haiku_sys::{B_ANY_TYPE, B_MESSAGE_TYPE, find_thread, get_thread_info, thread_info};
 use haiku_sys::errors::B_OK;
 
+use ::app::Messenger;
 use ::app::sys::*;
 use ::support::{ErrorKind, Flattenable, HaikuError, Result};
 
@@ -392,6 +393,15 @@ impl Message {
 		println!("team: {}, reply_team: {}", team, self.header.reply_team);
 		(self.header.flags & MESSAGE_FLAG_WAS_DELIVERED) != 0
 			&& self.header.reply_team != team
+	}
+	
+	/// Get a Messenger to the sender of this message
+	pub fn get_return_address(&self) -> Option<Messenger> {
+		if (self.header.flags & MESSAGE_FLAG_WAS_DELIVERED) == 0 {
+			return None;
+		}
+		
+		Messenger::from_port_id(self.header.reply_port)
 	}
 
 	fn hash_name(&self, name: &str) -> u32 {
