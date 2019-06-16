@@ -6,7 +6,7 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
-use ::app::{Handler, Message, Messenger};
+use ::app::{B_READY_TO_RUN, Handler, Message, Messenger};
 use ::app::looper::Looper;
 use ::kernel::ports::Port;
 use ::support::Result;
@@ -25,10 +25,11 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 		let state = Arc::new(Mutex::new(initial_state));
 		let default_looper_state = Box::new(ApplicationLooperState{});
 		let context = Context {
+			looper_messenger: Messenger::from_port(&port).unwrap(),
 			application_messenger: Messenger::from_port(&port).unwrap(),
 			application_state: state.clone()
 		};
-		let inner_looper = Looper {
+		let mut inner_looper = Looper {
 			name: String::from("application"),
 			port: port,
 			message_queue: VecDeque::new(),
@@ -38,6 +39,9 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 			terminating: false
 		};
 		
+		// Add the READY_TO_RUN message to the queue
+		inner_looper.message_queue.push_back(Message::new(B_READY_TO_RUN));
+		
 		Self {
 			state: state,
 			inner_looper: inner_looper,
@@ -46,13 +50,15 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 
 	pub fn create_looper(&mut self, name: &str, initial_state: Box<dyn Handler<A> + Send>) -> Looper<A>
 	{
+		let port = Port::create(name, LOOPER_PORT_DEFAULT_CAPACITY).unwrap();
 		let context = Context {
+			looper_messenger: Messenger::from_port(&port).unwrap(),
 			application_messenger: self.inner_looper.get_messenger(),
 			application_state: self.state.clone()
 		};
 		Looper {
 			name: String::from(name),
-			port: Port::create(name, LOOPER_PORT_DEFAULT_CAPACITY).unwrap(),
+			port: port,
 			message_queue: VecDeque::new(),
 //			handlers: vec![initial_handler],
 			context: context,
@@ -66,14 +72,22 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 		self.inner_looper.looper_task();
 		Ok(())
 	}
+	
+	pub fn get_messenger(&self) -> Messenger {
+		self.inner_looper.get_messenger()
+	}
 }
 
 pub struct Context<A> where A: Send {
+	pub looper_messenger: Messenger,
 	pub application_messenger: Messenger,
 	pub application_state: Arc<Mutex<A>>
 }
 
 pub trait ApplicationHooks {
+	// TODO: the second argument for each hook now is a &Messenger. This should
+	//       be a more context-like object in the future, that exposes more
+	//       information about the application.
 	fn quit_requested(&mut self, _application_messenger: &Messenger) -> bool {
 		true
 	}
@@ -91,7 +105,11 @@ impl<A> Handler<A> for ApplicationLooperState
 {
 	fn message_received(&mut self, context: &Context<A>, message: &Message) {
 		let mut application_state = context.application_state.lock().unwrap();
-		application_state.message_received(&context.application_messenger, message);
+		// Dispatch specific messages to particular application hooks
+		match message.what() {
+			B_READY_TO_RUN => application_state.ready_to_run(&context.application_messenger),
+			_ => application_state.message_received(&context.application_messenger, message)
+		}
 	}
 }
 
@@ -99,8 +117,9 @@ impl<A> Handler<A> for ApplicationLooperState
 mod tests {
 	use super::*;
 	use app::{Message, QUIT};
-	use std::time::Duration;
-	use std::thread::sleep;
+	
+	const ADD_TO_COUNTER: u32 = haiku_constant!('C','O','+','+');
+	const INFORM_APP_ABOUT_COUNTER: u32 = haiku_constant!('I','A','A','C');
 	
 	struct CountLooperState {
 		count: u32
@@ -108,7 +127,15 @@ mod tests {
 	
 	impl Handler<ApplicationState> for CountLooperState {
 		fn message_received(&mut self, context: &Context<ApplicationState>, message: &Message) {
-			println!("{}", message.what());
+			match message.what() {
+				ADD_TO_COUNTER => {
+					self.count += 1;
+					let mut response = Message::new(INFORM_APP_ABOUT_COUNTER);
+					response.add_data("count", &self.count);
+					context.application_messenger.send_and_ask_reply(response, &context.looper_messenger);
+				},
+				_ => panic!("We are not supposed to receive messages other than ADD_TO_COUNTER"),
+			}
 		}
 	}
 	
@@ -117,8 +144,29 @@ mod tests {
 	}
 	
 	impl ApplicationHooks for ApplicationState {
-		fn message_received(&mut self, _app_messenger: &Messenger, message: &Message) {
-			println!("application: {}", message.what());
+		fn ready_to_run(&mut self, _app_messenger: &Messenger) {
+			println!("ready_to_run()");
+		}
+		
+		fn message_received(&mut self, app_messenger: &Messenger, message: &Message) {
+			match message.what() {
+				INFORM_APP_ABOUT_COUNTER => {
+					self.total_count += 1;
+					let count = message.find_data::<u32>("count", 0).unwrap();
+					if count == 2 {
+						// Quit the looper when the count hits 2
+						let messenger = message.get_return_address().unwrap();
+						messenger.send_and_ask_reply(Message::new(QUIT), &messenger);
+					}
+					println!("total count: {}", self.total_count);
+				},
+				_ => println!("application: {}", message.what())
+			}
+			
+			// Check if we are done now
+			if self.total_count == 4 {
+				app_messenger.send_and_ask_reply(Message::new(QUIT), &app_messenger);
+			}
 		}
 	}
 	
@@ -136,11 +184,18 @@ mod tests {
 		let messenger_2 = looper_2.get_messenger();
 		assert!(looper_1.run().is_ok());
 		assert!(looper_2.run().is_ok());
-		let mut message = Message::new(1234);
-		messenger_1.send_and_ask_reply(message, &messenger_2);
-		let mut message = Message::new(5678);
-		messenger_1.send_and_ask_reply(message, &messenger_2);
-		sleep(Duration::from_millis(500));
-		messenger_1.send_and_ask_reply(Message::new(QUIT), &messenger_2);
+		
+		// Create four count messages, two for each counter
+		let app_messenger = application.get_messenger();
+		let mut message = Message::new(ADD_TO_COUNTER);
+		messenger_1.send_and_ask_reply(message, &app_messenger);
+		let mut message = Message::new(ADD_TO_COUNTER);
+		messenger_2.send_and_ask_reply(message, &app_messenger);
+		let mut message = Message::new(ADD_TO_COUNTER);
+		messenger_1.send_and_ask_reply(message, &app_messenger);
+		let mut message = Message::new(ADD_TO_COUNTER);
+		messenger_2.send_and_ask_reply(message, &app_messenger);
+
+		application.run();
 	}
 }

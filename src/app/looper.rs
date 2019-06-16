@@ -38,7 +38,7 @@ impl<A> Looper<A> where A: Send + 'static {
 	
 	pub fn run(mut self) -> Result<()> {
 		let child = thread::spawn(move || {
-			println!("Running looper {}", &self.name());
+			println!("[{}] Running looper", self.name());
 			self.looper_task();
 		});
 		Ok(())
@@ -46,14 +46,14 @@ impl<A> Looper<A> where A: Send + 'static {
 
 	pub(crate) fn looper_task(&mut self) {
 		loop {
-			println!("outer loop");
+			println!("[{}] outer loop", self.name());
 
 			// Try to read the first message from the port
 			// This will block until there is a message
 			match self.read_message_from_port(INFINITE_TIMEOUT) {
 				Ok(message) => self.message_queue.push_back(message),
 				Err(e) => {
-					println!("Error getting message: {:?}", e); 
+					println!("[{}] Error getting message: {:?}", self.name(), e); 
 					continue;
 				}
 			}
@@ -81,7 +81,7 @@ impl<A> Looper<A> where A: Send + 'static {
 					dispatch_next_message = false;
 				} else {
 					let message = message.unwrap();
-					println!("Handling message {:?}", message);
+					println!("[{}] Handling message {:?}", self.name(), message);
 					
 					match message.what() {
 						B_QUIT_REQUESTED => {},
@@ -111,10 +111,10 @@ impl<A> Looper<A> where A: Send + 'static {
 				}
 			}
 			if self.terminating {
-				println!("terminating looper");
+				println!("[{}] terminating looper", self.name());
 				break;
 			}
-			println!("at the end of the outer loop");
+			println!("[{}] at the end of the outer loop", self.name());
 		}
 	}
 
@@ -129,11 +129,3 @@ impl<A> Looper<A> where A: Send + 'static {
 		}
 	}
 }
-
-//pub struct LooperDelegate{
-//	messenger: Messenger
-//}
-//
-//impl LooperDelegate {
-//	pub fn quit(&mut self) {
-//		self.messenger.

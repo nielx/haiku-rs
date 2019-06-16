@@ -400,7 +400,7 @@ impl Message {
 		if (self.header.flags & MESSAGE_FLAG_WAS_DELIVERED) == 0 {
 			return None;
 		}
-		
+		println!("get_return_address() {}", self.header.reply_port);
 		Messenger::from_port_id(self.header.reply_port)
 	}
 
