@@ -9,8 +9,10 @@
 use libc::{FILENAME_MAX, PATH_MAX};
 
 mod attributes;
+mod mimetype;
 
 pub use self::attributes::{AttributeDescriptor, AttributeIterator, AttributeExt};
+pub use self::mimetype::MimeType;
 
 // Kit constants
 pub const B_DEV_NAME_LENGTH: usize = 128;
