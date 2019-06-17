@@ -6,7 +6,7 @@
 #![allow(non_camel_case_types)]
 
 extern crate libc;
-use libc::{c_char, c_int, c_void, DIR, dirent, FILENAME_MAX, off_t, PATH_MAX, size_t, ssize_t};
+use libc::{c_char, c_int, c_void, dev_t, DIR, dirent, FILENAME_MAX, ino_t, off_t, PATH_MAX, size_t, ssize_t};
 use std::mem;
 
 #[macro_export]
@@ -146,6 +146,79 @@ extern {
 	pub fn fs_close_attr_dir(dir: *mut DIR) -> c_int;
 	pub fn fs_read_attr_dir(dir: *mut DIR) -> *mut dirent;
 	pub fn fs_rewind_attr_dir(dir: *mut DIR);
+}
+
+// image.h
+
+pub type image_id = i32;
+#[repr(C)]
+pub enum image_type {
+	B_APP_IMAGE = 1,
+	B_LIBRARY_IMAGE = 2,
+	B_ADD_ON_IMAGE = 3,
+	B_SYSTEM_IMAGE = 4
+}
+
+#[repr(C)]
+pub struct image_info {
+	id: image_id,
+	image_type: image_type,
+	sequence: i32,
+	init_order: i32,
+	init_routine: *const c_void,
+	term_routine: *const c_void,
+	device: dev_t,
+	node: ino_t,
+	name: [c_char; PATH_MAX as usize],
+	text: *const c_void,
+	data: *const c_void,
+	text_size: i32,
+	data_size: i32,
+	api_version: i32,
+	abi: i32
+}
+
+pub const B_FLUSH_DCACHE: u32 = 0x0001;
+pub const B_FLUSH_ICACHE: u32 = 0x0004;
+pub const B_INVALIDATE_DCACHE: u32 = 0x0002;
+pub const B_INVALIDATE_ICACHE: u32 = 0x0008;
+
+pub const B_SYMBOL_TYPE_DATA: i32 = 0x1;
+pub const B_SYMBOL_TYPE_TEXT: i32 = 0x2;
+pub const B_SYMBOL_TYPE_ANY: i32 = 0x5;
+
+pub const B_INIT_BEFORE_FUNCTION_NAME: &'static str = "initialize_before";
+pub const B_INIT_AFTER_FUNCTION_NAME: &'static str = "initialize_after";
+pub const B_TERM_BEFORE_FUNCTION_NAME: &'static str = "terminate_before";
+pub const B_TERM_AFTER_FUNCTION_NAME: &'static str = "terminate_after";
+
+extern {
+	pub fn initialize_before(self_: image_id);
+	pub fn initialize_after(self_: image_id);
+	pub fn terminate_before(self_: image_id);
+	pub fn terminate_after(self_: image_id);
+}
+
+// B_APP_IMAGE_SYMBOL
+// B_CURRENT_IMAGE_SYMBOL
+
+extern {
+	// load_image
+	pub fn load_add_on(path: *const c_char) -> image_id;
+	pub fn unload_add_on(image: image_id) -> status_t;
+	// get_image_symbol
+	// get_nth_image_symbol
+	pub fn clear_caches(address: *const c_void, length: size_t, flags: u32);
+	pub fn _get_image_info(image: image_id, info: *mut image_info, size: size_t) -> status_t;
+	pub fn _get_next_image_info(team: team_id, cookie: *mut i32, info: *mut image_info, size: size_t) -> status_t;
+}
+
+pub unsafe fn get_image_info(image: image_id, info: *mut image_info) -> status_t {
+	_get_image_info(image, info, mem::size_of::<image_info>() as size_t)
+}
+
+pub unsafe fn get_next_image_info(team: team_id, cookie: *mut i32, info: *mut image_info) -> status_t {
+	_get_next_image_info(team, cookie, info, mem::size_of::<image_info>() as size_t)
 }
 
 // support/TypeConstants.h
