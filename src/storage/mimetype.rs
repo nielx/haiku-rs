@@ -5,6 +5,7 @@
 
 use ::storage::B_MIME_TYPE_LENGTH;
 
+#[derive(PartialEq)]
 pub struct MimeType {
 	type_string: String
 }
@@ -37,6 +38,23 @@ impl MimeType {
 			type_string: String::from(mime_type)
 		})
 	}
+
+	pub fn is_supertype_only(&self) -> bool {
+		!self.type_string.contains('/')
+	}
+
+	pub fn get_supertype(&self) -> MimeType {
+		if self.is_supertype_only() {
+			MimeType {
+				type_string: self.type_string.clone()
+			}
+		} else {
+			let mut it = self.type_string.split('/');
+			MimeType {
+				type_string: String::from(it.nth(0).unwrap())
+			}
+		}
+	}
 }
 
 #[test]
@@ -46,4 +64,13 @@ fn test_mimetype_check() {
 	assert!(MimeType::new("application/").is_none());
 	assert!(MimeType::new("invalid/\u{0301}rest").is_none());
 	assert!(MimeType::new("invalid//x-vnd-haiku").is_none());
+}
+
+#[test]
+fn test_mimetype_methods() {
+	let supertype = MimeType::new("test").unwrap();
+	let childtype = MimeType::new("test/document").unwrap();
+	assert!(supertype.is_supertype_only());
+	assert!(!childtype.is_supertype_only());
+	assert!(supertype == childtype.get_supertype());
 }
