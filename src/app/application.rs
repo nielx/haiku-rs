@@ -9,17 +9,29 @@ use std::sync::{Arc, Mutex};
 use ::app::{B_READY_TO_RUN, Handler, Message, Messenger};
 use ::app::looper::Looper;
 use ::kernel::ports::Port;
+use ::storage::MimeType;
 use ::support::Result;
 
 const LOOPER_PORT_DEFAULT_CAPACITY: i32 = 200;
 
 pub struct Application<A> where A: ApplicationHooks + Send + 'static {
 	state: Arc<Mutex<A>>,
-	inner_looper: Looper<A>
+	inner_looper: Looper<A>,
+	signature: MimeType
 }
 
 impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
-	pub fn new(initial_state: A) -> Self {
+	pub fn new(signature: &str, initial_state: A) -> Self {
+		// Check the signature
+		let mime_type =  match MimeType::new(signature) {
+			Some(t) => t,
+			None => panic!("Invalid MimeType")
+		};
+		
+		if mime_type.is_supertype_only() || (mime_type.get_supertype() != MimeType::new("application").unwrap()) {
+			panic!("Invalid MimeType");
+		}	
+		
 		// Set up some defaults
 		let port = Port::create("application", LOOPER_PORT_DEFAULT_CAPACITY).unwrap();
 		let state = Arc::new(Mutex::new(initial_state));
@@ -45,6 +57,7 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 		Self {
 			state: state,
 			inner_looper: inner_looper,
+			signature: mime_type
 		}
 	}
 
@@ -176,7 +189,7 @@ mod tests {
 		let looper_state_2 = Box::new(CountLooperState{ count: 0 });
 		let application_state = ApplicationState{ total_count: 0 };
 
-		let mut application = Application::new(application_state);
+		let mut application = Application::new("application/looper_test", application_state);
 
 		let looper_1 = application.create_looper("looper 1", looper_state_1);
 		let messenger_1 = looper_1.get_messenger();
