@@ -6,7 +6,15 @@
 #![allow(non_camel_case_types)]
 #![allow(dead_code)]
 
-use haiku_sys::{type_code, area_id, port_id, team_id};
+use std::ffi::CStr;
+use std::mem;
+use std::path::PathBuf;
+
+use haiku_sys::{image_type, get_next_image_info, image_info, type_code, area_id, port_id, team_id};
+use haiku_sys::errors::B_OK;
+use libc::c_char;
+
+use ::support::{ErrorKind, HaikuError, Result};
 
 // private/app/MessagePrivate.h
 
@@ -63,4 +71,20 @@ pub struct message_header {
 	pub field_count: u32,
 	pub hash_table_size: u32,
 	pub hash_table: [i32; 5]
+}
+
+// Helper functions
+pub(crate) fn get_app_path(team: team_id) -> Result<PathBuf> {
+	let mut info: image_info = unsafe { mem::zeroed() };
+	let mut cookie: i32 = 0;
+
+	unsafe {
+		while get_next_image_info(team, &mut cookie, &mut info) == B_OK {
+			if info.image_type == image_type::B_APP_IMAGE {
+				let c_name = CStr::from_ptr((&info.name) as *const c_char);
+				return Ok(PathBuf::from(c_name.to_str().unwrap()));
+			}
+		}
+	}
+	Err(HaikuError::new(ErrorKind::NotFound, "Cannot find the app image"))
 }
