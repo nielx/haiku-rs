@@ -1,5 +1,6 @@
 doc/
 objects/
 /target/
+haiku-sys/target/
 **/*.rs.bk
 Cargo.lock
