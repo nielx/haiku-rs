@@ -10,6 +10,7 @@ use libc::{FILENAME_MAX, PATH_MAX};
 
 mod attributes;
 mod mimetype;
+pub(crate) mod sys;
 
 pub use self::attributes::{AttributeDescriptor, AttributeIterator, AttributeExt};
 pub use self::mimetype::MimeType;
