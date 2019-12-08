@@ -10,7 +10,8 @@ use ::kernel::helpers;
 use ::kernel::ports::Port;
 use ::kernel::teams::Team;
 use ::support;
-use ::support::Flattenable;
+use ::support::{ErrorKind, Flattenable, HaikuError, Result};
+use ::storage::sys::entry_ref;
 
 struct LaunchRoster {
 	messenger: Messenger
@@ -41,6 +42,18 @@ impl LaunchRoster {
 		let team = response_message.find_data::<i32>("team", 0).unwrap();
 		Some((Port::from_id(port).unwrap(), Team::from(team).unwrap()))
 	}
+}
+
+pub(crate) enum ApplicationRegistrationStatus {
+	Registered(AppInfo),
+	PreRegistered(AppInfo),
+	NotRegistered
+}
+
+pub(crate) enum ApplicationRegistrationResult {
+	Registered,
+	PreRegistered(i32),
+	OtherInstance(team_id, i32)
 }
 
 
@@ -94,7 +107,7 @@ impl Roster {
 		if response.is_err() {
 			return None;
 		}
-		
+
 		let response = response.unwrap();
 		if response.what() == haiku_constant!('r','g','s','u') {
 			let flat_app_info = response.find_data::<FlatAppInfo>("app_info", 0).unwrap();
@@ -102,10 +115,80 @@ impl Roster {
 		}
 		return None;
 	}
+
+	/// Register or preregister an app in the Registrar
+	pub(crate) fn add_application(&self, signature: &String, entry: &entry_ref,
+		flags: u32, team: team_id, thread: thread_id, port: port_id,
+		full_registration: bool) -> Result<ApplicationRegistrationResult>
+	{
+		// B_REG_ADD_APP
+		let mut request = Message::new(haiku_constant!('r','g','a','a'));
+		request.add_data("signature", signature);
+		request.add_data("ref", entry);
+		request.add_data("flags", &flags);
+		request.add_data("team", &team);
+		request.add_data("thread", &thread);
+		request.add_data("port", &port);
+		request.add_data("full_registration", &full_registration);
+		let response = self.messenger.send_and_wait_for_reply(request)?;
+		if response.what() == B_REG_SUCCESS {
+			if !full_registration && team < 0 {
+				let token: i32 = match response.find_data("token", 0) {
+					Ok(token) => token,
+					Err(_) => return Err(support::HaikuError::new(support::ErrorKind::InvalidData, "No token for preregistration by Registrar"))
+				};
+				Ok(ApplicationRegistrationResult::PreRegistered(token))
+			} else {
+				Ok(ApplicationRegistrationResult::Registered)
+			}
+		} else {
+			let token: Result<i32> = response.find_data("token", 0);
+			let team: Result<team_id> = response.find_data("team", 0);
+			if token.is_ok() && team.is_ok() {
+				Ok(ApplicationRegistrationResult::OtherInstance(team.unwrap(), token.unwrap()))
+			} else {
+				Err(support::HaikuError::new(support::ErrorKind::InvalidData, "Invalid registration response by Registrar"))
+			}
+		}
+	}
+
+	/// Check on the registrar if the app is registered
+	pub(crate) fn is_application_registered(&self, entry: &entry_ref,
+		team: team_id, token: u32) -> Result<ApplicationRegistrationStatus>
+	{
+		// B_REG_IS_APP_REGISTERED
+		let mut request = Message::new(haiku_constant!('r','g','i','p'));
+		request.add_data("ref", entry);
+		request.add_data("team", &team);
+		request.add_data("token", &(token as i32));
+
+		let response = self.messenger.send_and_wait_for_reply(request)?;
+		if response.what() == B_REG_SUCCESS {
+			let registered: bool = response.find_data("registered", 0).unwrap_or(false);
+			let pre_registered: bool = response.find_data("pre-registered", 0).unwrap_or(false);
+			let app_info: Option<AppInfo> = match response.find_data::<FlatAppInfo>("app_info", 0) {
+				Ok(info) => Some(info.to_app_info()),
+				Err(_) => None
+			};
+			if (pre_registered || registered) && app_info.is_none() {
+				Err(support::HaikuError::new(support::ErrorKind::InvalidData, "The Registrar returned an invalid response"))
+			} else if pre_registered {
+				Ok(ApplicationRegistrationStatus::PreRegistered(app_info.unwrap()))
+			} else if registered {
+				Ok(ApplicationRegistrationStatus::Registered(app_info.unwrap()))
+			} else {
+				Ok(ApplicationRegistrationStatus::NotRegistered)
+			}
+		} else {
+			let errno: i32 = response.find_data("error", 0).unwrap_or(-1);
+			Err(support::HaikuError::new(support::ErrorKind::InvalidData, format!("The Registrar returned an error on request: {}", errno)))
+		}
+	}
 }
 
 
 const B_REG_APP_INFO_TYPE: u32 = haiku_constant!('r','g','a','i');
+const B_REG_SUCCESS: u32 = haiku_constant!('r','g','s','u');
 
 
 // It is not possible to safely get references from packed structs. Therefore

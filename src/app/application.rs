@@ -4,12 +4,18 @@
 //
 
 use std::collections::VecDeque;
+use std::mem;
 use std::sync::{Arc, Mutex};
+
+use haiku_sys::{thread_info, thread_id, find_thread, get_thread_info, team_id};
 
 use ::app::{B_READY_TO_RUN, Handler, Message, Messenger};
 use ::app::looper::Looper;
+use ::app::roster::{ROSTER, ApplicationRegistrationStatus};
+use ::app::sys::get_app_path;
 use ::kernel::ports::Port;
 use ::storage::MimeType;
+use ::storage::sys::entry_ref;
 use ::support::Result;
 
 const LOOPER_PORT_DEFAULT_CAPACITY: i32 = 200;
@@ -30,10 +36,36 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 		
 		if mime_type.is_supertype_only() || (mime_type.get_supertype() != MimeType::new("application").unwrap()) {
 			panic!("Invalid MimeType");
-		}	
-		
-		// Set up some defaults
+		}
+
+		// Get an entry_ref for this path
+		let path = get_app_path(0).expect("Cannot get the path for this executable");
+		let entry = entry_ref::from_path(&path).expect("Cannot get the entry_ref for this executable");
+		println!("path: {:?} entry: {:?}\n", path.to_str(), entry.name);
+
+		// To do: see if the application file has any attributes set
+		let app_flags: u32 = 1; //B_MULTIPLE_LAUNCH as B_REG_DEFAULT_APP_FLAGS
+
+		// Register at the app server
 		let port = Port::create("application", LOOPER_PORT_DEFAULT_CAPACITY).unwrap();
+		let (team, thread) = get_current_team_and_thread();
+		let registration = match ROSTER.is_application_registered(&entry, team, 0) {
+			Ok(r) => r,
+			Err(_) => panic!("Error communicating with the registrar about the registration status")
+		};
+		match registration {
+			ApplicationRegistrationStatus::Registered(_) => (), //Ignored by the C++ implementation as well
+			ApplicationRegistrationStatus::PreRegistered(_) => panic!("Pre registered applications are not implemented"),
+			ApplicationRegistrationStatus::NotRegistered => (), //Ignored, now register
+		};
+		
+		let registration = match ROSTER.add_application(&String::from(signature), &entry, app_flags,
+			team, thread, port.get_port_id(), true) {
+				Ok(r) => r,
+				Err(_) => panic!("Error registering with the registrar")
+		};
+
+		// Set up some defaults
 		let state = Arc::new(Mutex::new(initial_state));
 		let default_looper_state = Box::new(ApplicationLooperState{});
 		let context = Context {
@@ -125,6 +157,21 @@ impl<A> Handler<A> for ApplicationLooperState
 		}
 	}
 }
+
+/// Get the current team id and thread id
+// TODO: some caching
+fn get_current_team_and_thread() -> (team_id, thread_id) {
+	let mut info: thread_info = unsafe { mem::zeroed() };
+	let (team, thread) = unsafe {
+		if get_thread_info(find_thread(0 as *const i8), &mut info) == 0 {
+			(info.team, info.thread)
+		} else {
+			(-1, -1)
+		}
+	};
+	(team, thread)
+}
+
 
 #[cfg(test)]
 mod tests {
