@@ -118,6 +118,8 @@ pub unsafe fn get_next_thread_info(id: thread_id, cookie: *mut i32, info: *mut t
 	_get_next_thread_info(id, cookie, info, mem::size_of::<thread_info>() as size_t)
 }
 
+pub const B_CURRENT_TEAM: team_id = 0;
+pub const B_SYSTEM_TEAM: team_id = 1;
 
 // fs_attr.h
 #[repr(C)]
@@ -152,6 +154,7 @@ extern {
 
 pub type image_id = i32;
 #[repr(C)]
+#[derive(PartialEq)]
 pub enum image_type {
 	B_APP_IMAGE = 1,
 	B_LIBRARY_IMAGE = 2,
@@ -161,21 +164,21 @@ pub enum image_type {
 
 #[repr(C)]
 pub struct image_info {
-	id: image_id,
-	image_type: image_type,
-	sequence: i32,
-	init_order: i32,
-	init_routine: *const c_void,
-	term_routine: *const c_void,
-	device: dev_t,
-	node: ino_t,
-	name: [c_char; PATH_MAX as usize],
-	text: *const c_void,
-	data: *const c_void,
-	text_size: i32,
-	data_size: i32,
-	api_version: i32,
-	abi: i32
+	pub id: image_id,
+	pub image_type: image_type,
+	pub sequence: i32,
+	pub init_order: i32,
+	pub init_routine: *const c_void,
+	pub term_routine: *const c_void,
+	pub device: dev_t,
+	pub node: ino_t,
+	pub name: [c_char; PATH_MAX as usize],
+	pub text: *const c_void,
+	pub data: *const c_void,
+	pub text_size: i32,
+	pub data_size: i32,
+	pub api_version: i32,
+	pub abi: i32
 }
 
 pub const B_FLUSH_DCACHE: u32 = 0x0001;
