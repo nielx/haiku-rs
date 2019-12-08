@@ -12,7 +12,7 @@ mod looper;
 mod message;
 mod messenger;
 mod roster;
-// pub(crate) mod serverlink;
+pub(crate) mod serverlink;
 pub(crate) mod sys;
 
 pub use self::application::{Application, ApplicationHooks, Context};

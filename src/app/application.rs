@@ -123,6 +123,14 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 	}
 }
 
+impl<A> Drop for Application<A> where A: ApplicationHooks + Send + 'static {
+	fn drop(&mut self) {
+		// Unregister from Registrar
+		let (team, _) = get_current_team_and_thread();
+		let _ = ROSTER.remove_application(team);
+	}
+}
+
 pub struct Context<A> where A: Send {
 	pub looper_messenger: Messenger,
 	pub application_messenger: Messenger,
