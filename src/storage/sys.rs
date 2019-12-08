@@ -10,7 +10,9 @@ use std::path::Path;
 
 use libc::{dev_t, ino_t, stat};
 
-use ::support::{ErrorKind, HaikuError, Result};
+use haiku_sys::B_REF_TYPE;
+
+use ::support::{ErrorKind, Flattenable, HaikuError, Result};
 
 #[repr(C)]
 pub(crate) struct entry_ref {
@@ -35,7 +37,7 @@ impl entry_ref {
 			}
 		}
 		
-		let name = match directory.file_name() {
+		let name = match value.file_name() {
 			Some(n) => CString::new(n.as_bytes()).unwrap(),
 			None => return Err(HaikuError::new(ErrorKind::NotFound, "Cannot determine filename for this path")),
 		};
@@ -47,6 +49,34 @@ impl entry_ref {
 		})
 	}
 }
+
+impl Flattenable<entry_ref> for entry_ref {
+	fn type_code() -> u32 {
+		B_REF_TYPE
+	}
+
+	fn flattened_size(&self) -> usize {
+		return mem::size_of::<dev_t>() + mem::size_of::<ino_t>() + self.name.as_bytes_with_nul().len()
+	}
+
+	fn is_fixed_size() -> bool {
+		false
+	}
+
+	fn flatten(&self) -> Vec<u8> {
+		let mut vec: Vec<u8> = Vec::with_capacity(self.flattened_size());
+		vec.extend(self.device.flatten().iter());
+		vec.extend(self.directory.flatten().iter());
+		vec.extend(self.name.as_bytes_with_nul().iter());
+		println!("vec {:?}", vec);
+		vec
+	}
+
+	fn unflatten(buffer: &[u8]) -> Result<entry_ref> {
+		unimplemented!()
+	}
+}
+
 
 #[test]
 fn test_entry_ref_from_path() {
