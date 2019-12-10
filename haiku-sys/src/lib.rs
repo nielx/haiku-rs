@@ -27,6 +27,71 @@ pub type thread_id = i32;
 pub type status_t = i32;
 pub type bigtime_t = i64;
 
+
+#[repr(C)]
+pub struct area_info {
+	pub area: area_id,
+	pub name: [c_char; B_OS_NAME_LENGTH],
+	pub size: usize,
+	pub lock: u32,
+	pub protection: u32,
+	pub team: team_id,
+	pub ram_size: u32,
+	pub copy_count: u32,
+	pub in_count: u32,
+	pub out_count: u32,
+	pub address: *mut c_void
+}
+
+pub const B_NO_LOCK: u32 = 0;
+pub const B_LAZY_LOCK: u32 = 1;
+pub const B_FULL_LOCK: u32 = 2;
+pub const B_CONTIGUOUS: u32 = 3;
+pub const B_LOMEM: u32 = 4;
+pub const B_32_BIT_FULL_LOCK: u32 = 5;
+pub const B_32_BIT_CONTIGUOUS: u32 = 6;
+
+pub const B_ANY_ADDRESS: u32 = 0;
+pub const B_EXACT_ADDRESS: u32 = 1;
+pub const B_BASE_ADDRESS: u32 = 2;
+pub const B_CLONE_ADDRESS: u32 = 3;
+pub const B_ANY_KERNEL_ADDRESS: u32 = 4;
+pub const B_RANDOMIZED_ANY_ADDRESS: u32 = 6;
+pub const B_RANDOMIZED_BASE_ADDRESS: u32 = 7;
+
+pub const B_READ_AREA: u32 = 1 << 0;
+pub const B_WRITE_AREA: u32 = 1 << 1;
+pub const B_EXECUTE_AREA: u32 = 1 << 2;
+pub const B_STACK_AREA: u32 = 1 << 3;
+pub const B_CLONEABLE_AREA: u32 = 1 << 8;
+
+extern {
+	pub fn create_area(name: *const c_char, startAddress: *mut *mut c_void,
+										addressSpec: u32, size: usize,
+										lock: u32, protection: u32) -> area_id;
+	pub fn clone_area(name: *const c_char, destAddress: *mut *mut c_void,
+										addressSpec: u32, protection: u32,
+										source: area_id) -> area_id;
+	pub fn find_area(name: *const c_char) -> area_id;
+	pub fn area_for(address: *mut c_void) -> area_id;
+	pub fn delete_area(id: area_id) -> status_t;
+	pub fn resize_area(id: area_id, newSize: usize) -> status_t;
+	pub fn set_area_protection(id: area_id, newProtection: u32) -> status_t;
+	pub fn _get_area_info(id: area_id, areaInfo: *mut area_info,
+										size: usize) -> status_t;
+	pub fn _get_next_area_info(team: team_id, cookie: *mut isize,
+										areaInfo: *mut area_info,
+										size: usize) -> status_t;
+}
+
+pub unsafe fn get_area_info(id: area_id, info: *mut area_info) -> status_t {
+	_get_area_info(id, info, mem::size_of::<area_info>() as usize)
+}
+
+pub unsafe fn get_next_area_info(team: team_id, cookie: *mut isize, info: *mut area_info) -> status_t {
+	_get_next_area_info(team, cookie, info, mem::size_of::<area_info>() as usize)
+}
+
 #[repr(C)]
 pub struct port_info {
 	pub port: port_id,
