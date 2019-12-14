@@ -1,5 +1,6 @@
 use libc::{c_char, dev_t, getuid, ino_t};
-use haiku_sys::{B_MIME_TYPE_LENGTH, B_FILE_NAME_LENGTH, port_id, team_id, thread_id};
+use haiku_sys::{B_MIME_TYPE_LENGTH, B_FILE_NAME_LENGTH, port_id, team_id, thread_id, status_t};
+use haiku_sys::errors::B_ERROR;
 use std::{mem, ptr};
 use std::result;
 use std::str::{Utf8Error, from_utf8};
@@ -13,7 +14,7 @@ use ::support;
 use ::support::{ErrorKind, Flattenable, HaikuError, Result};
 use ::storage::sys::entry_ref;
 
-struct LaunchRoster {
+pub(crate) struct LaunchRoster {
 	messenger: Messenger
 }
 
@@ -24,7 +25,7 @@ impl LaunchRoster {
 		LaunchRoster { messenger: roster_messenger }
 	}
 	
-	fn get_data(&mut self, signature: &str) -> Option<(Port, Team)> {
+	fn get_data(&self, signature: &str) -> Option<(Port, Team)> {
 		let constant: u32 = haiku_constant!('l','n','d','a');
 		let mut message = Message::new(constant);
 		// TODO: add support for &str as Flattenable
@@ -184,6 +185,21 @@ impl Roster {
 			Err(support::HaikuError::new(support::ErrorKind::InvalidData, format!("The Registrar returned an error on request: {}", errno)))
 		}
 	}
+
+	/// Unregister a previously registered application
+	pub(crate) fn remove_application(&self, team: team_id) -> Result<()> {
+		// B_REG_REMOVE_APP
+		let mut request = Message::new(haiku_constant!('r','g','r','a'));
+		request.add_data("team", &team);
+
+		let response = self.messenger.send_and_wait_for_reply(request)?;
+		if response.what() == B_REG_SUCCESS {
+			Ok(())
+		} else {
+			let error: status_t = response.find_data("error", 0).unwrap_or(B_ERROR);
+			Err(support::HaikuError::from_raw_os_error(error))
+		}
+	}
 }
 
 
@@ -291,12 +307,19 @@ pub struct AppInfo {
 
 
 lazy_static! {
+	pub(crate) static ref LAUNCH_ROSTER: LaunchRoster = {
+		LaunchRoster::init()
+	};
+}
+
+
+lazy_static! {
 	/// The `ROSTER` gives access to a global `Roster` object that can be used
 	/// to communicate with Haiku's registrar that tracks all the running Haiku
 	/// applications.
 	pub static ref ROSTER: Roster = {
 		// Get a connection with the registrar
-		let roster_data = LaunchRoster::init().get_data("application/x-vnd.haiku-registrar").expect("Cannot connect to the Registrar!");
+		let roster_data = LAUNCH_ROSTER.get_data("application/x-vnd.haiku-registrar").expect("Cannot connect to the Registrar!");
 		Roster{ messenger: Messenger::from_port_id(roster_data.0.get_port_id()).unwrap() }
 	};
 }
