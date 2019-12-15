@@ -1,6 +1,6 @@
 use libc::{c_char, dev_t, getuid, ino_t};
 use haiku_sys::{B_MIME_TYPE_LENGTH, B_FILE_NAME_LENGTH, port_id, team_id, thread_id, status_t};
-use haiku_sys::errors::B_ERROR;
+use haiku_sys::errors::{B_ERROR, B_OK};
 use std::{mem, ptr};
 use std::result;
 use std::str::{Utf8Error, from_utf8};
@@ -24,8 +24,14 @@ impl LaunchRoster {
 		let roster_messenger = Messenger::from_port(&port).expect("Cannot connect to the launch daemon");
 		LaunchRoster { messenger: roster_messenger }
 	}
-	
-	fn get_data(&self, signature: &str) -> Option<(Port, Team)> {
+
+	/// Method to get the data that the launch_daemon has on an application
+	///
+	/// The result will be an Err() if there was something wrong with the
+	/// communication. Otherwise, the response message that came in will be
+	/// returned. Note that inside this message there still may be an error,
+	/// but this is stored in the message.what.
+	pub(crate) fn get_data(&self, signature: &str) -> Result<Message> {
 		let constant: u32 = haiku_constant!('l','n','d','a');
 		let mut message = Message::new(constant);
 		// TODO: add support for &str as Flattenable
@@ -34,14 +40,8 @@ impl LaunchRoster {
 		message.add_data("user", &(uid as i32));
 
 		// Send message
-		let response = self.messenger.send_and_wait_for_reply(message);
-		if response.is_err() {
-			return None
-		}
-		let response_message = response.unwrap();
-		let port = response_message.find_data::<i32>("port", 0).unwrap();
-		let team = response_message.find_data::<i32>("team", 0).unwrap();
-		Some((Port::from_id(port).unwrap(), Team::from(team).unwrap()))
+		let response = self.messenger.send_and_wait_for_reply(message)?;
+		Ok(response)
 	}
 }
 
@@ -319,8 +319,12 @@ lazy_static! {
 	/// applications.
 	pub static ref ROSTER: Roster = {
 		// Get a connection with the registrar
-		let roster_data = LAUNCH_ROSTER.get_data("application/x-vnd.haiku-registrar").expect("Cannot connect to the Registrar!");
-		Roster{ messenger: Messenger::from_port_id(roster_data.0.get_port_id()).unwrap() }
+		let roster_data = LAUNCH_ROSTER.get_data("application/x-vnd.haiku-registrar").expect("Cannot connect to the launch_daemon to get info about the registrar!");
+		if roster_data.what() != (B_OK as u32) {
+			panic!("Cannot connect to the registrar");
+		}
+		let port: port_id = roster_data.find_data("port", 0).expect("Cannot find port info for registrar");
+		Roster{ messenger: Messenger::from_port_id(port).unwrap() }
 	};
 }
 
