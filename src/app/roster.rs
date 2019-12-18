@@ -104,6 +104,32 @@ impl Roster {
 		let mut request = Message::new(haiku_constant!('r','g','a','i'));
 		request.add_data("team", &team.get_team_id());
 		let response = self.messenger.send_and_wait_for_reply(request);
+
+		if response.is_err() {
+			println!("Response.is err");
+			return None;
+		}
+
+		let response = response.unwrap();
+		if response.what() == haiku_constant!('r','g','s','u') {
+			let flat_app_info = response.find_data::<FlatAppInfo>("app_info", 0).unwrap();
+			return Some(flat_app_info.to_app_info());
+		}
+		return None;
+	}
+
+	/// Get the information of an application with a certain signature
+	///
+	/// If there is a problem connecting tot the registrar, this method
+	/// will return None.
+	/// Get the information of a running application
+	///
+	/// If there is a problem connecting to the registrar, this method
+	/// will return None.
+	pub fn get_app_info(&self, signature: &str) -> Option<AppInfo> {
+		let mut request = Message::new(haiku_constant!('r','g','a','i'));
+		request.add_data("signature", &String::from(signature));
+		let response = self.messenger.send_and_wait_for_reply(request);
 		
 		if response.is_err() {
 			return None;
@@ -281,6 +307,16 @@ impl Flattenable<FlatAppInfo> for FlatAppInfo {
 }
 
 
+// Supporting constants for AppInfo
+const B_SINGLE_LAUNCH: u32 = 0x0;
+const B_MULTIPLE_LAUNCH: u32 = 0x1;
+const B_EXCLUSIVE_LAUNCH: u32 = 0x2;
+// B_LAUNCH_MASK 0x3
+const B_BACKGROUND_APP: u32 = 0x4;
+const B_ARGV_ONLY: u32 = 0x8;
+// B_APP_INFO_RESERVED1_ 0x10000000
+
+
 /// Contains the information about a running application
 ///
 /// The information is provided by Haiku's registrar, and can be queried using
@@ -297,12 +333,47 @@ pub struct AppInfo {
 	pub port: port_id,
 	/// Any flags for this running application
 	///
-	/// Note that the flags are not yet implemented in this rust crate
+	/// You probably want to use the `launch_type()` function to get them
 	pub flags: u32,
 	/// The path of the executable
 	pub path: String,
 	/// The mime type that represents the application's signature
 	pub signature: String,
+}
+
+///  Launch Types
+///
+/// Haiku Applications have three launch types: single launch, multiple launch
+/// and exclusive launch. This can be a property on the executable file, and it
+/// is also stored in Haiku's Registrar. This property is part of the `AppInfo`
+pub enum LaunchType {
+	SingleLaunch,
+	MultipleLaunch,
+	ExclusiveLaunch
+}
+
+impl AppInfo {
+	/// Get the LaunchType for this application
+	pub fn launch_type(&self) -> LaunchType {
+		if self.flags & B_MULTIPLE_LAUNCH != 0 {
+			LaunchType::MultipleLaunch
+		} else if self.flags & B_EXCLUSIVE_LAUNCH != 0 {
+			LaunchType::ExclusiveLaunch
+		} else {
+			LaunchType::SingleLaunch
+		}
+	}
+	
+	/// Determine if the application is a background application
+	pub fn is_background(&self) -> bool {
+		self.flags & B_BACKGROUND_APP != 0
+	}
+	
+	/// Determine if the application only allows command line arguments for
+	/// passing data, not messages.
+	pub fn is_argv_only(&self) -> bool {
+		self.flags & B_ARGV_ONLY != 0
+	}
 }
 
 
