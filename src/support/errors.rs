@@ -61,6 +61,10 @@ pub enum ErrorKind {
 	/// This error is returned when one of the parameters of the function call
 	/// refers to something that does not/no longer exists.
 	NotFound,
+	/// This error is returned when the operation is not allowed, because the
+	/// user has insufficient privileges, or the target of the operation does
+	/// not allow it.
+	NotAllowed,
 	/// This leftover category is for any other error.
 	///
 	/// Sometimes a lower level system error is not properly mapped to a higher
@@ -75,6 +79,7 @@ impl ErrorKind {
 			ErrorKind::InvalidData => "invalid data",
 			ErrorKind::InvalidInput => "invalid input parameter",
 			ErrorKind::NotFound => "entity not found",
+			ErrorKind::NotAllowed => "operation not allowed",
 			ErrorKind::Other => "other os error",
 		}
 	}
@@ -210,6 +215,7 @@ fn decode_error_kind(errno: status_t) -> ErrorKind {
 		B_NAME_IN_USE => ErrorKind::InvalidInput,
 		B_BAD_DATA => ErrorKind::InvalidData,
 		B_DONT_DO_THAT => ErrorKind::InvalidInput,
+		B_NOT_ALLOWED => ErrorKind::NotAllowed,
 		_ => ErrorKind::Other
 	}
 }
