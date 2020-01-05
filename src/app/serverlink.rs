@@ -1,5 +1,5 @@
 //
-// Copyright 2019, Niels Sascha Reedijk <niels.reedijk@gmail.com>
+// Copyright 2019-2020, Niels Sascha Reedijk <niels.reedijk@gmail.com>
 // All rights reserved. Distributed under the terms of the MIT License.
 //
 
@@ -9,20 +9,16 @@
 use std::env;
 use std::io::{Cursor, Seek, SeekFrom, Write};
 use std::mem;
+use std::str;
 
-use haiku_sys::port_id;
+use libc::ssize_t;
+use haiku_sys::{port_id, read_port_etc, port_buffer_size_etc, B_TIMEOUT};
+use haiku_sys::errors::B_INTERRUPTED;
 
 use ::app::message::Message;
 use ::app::messenger::Messenger;
 use ::kernel::ports::Port;
 use ::support::{Result, Flattenable, HaikuError, ErrorKind};
-
-#[repr(C)]
-struct message_header {
-	size: i32,
-	code: u32,
-	flags: u32
-}
 
 const LINK_CODE: i32 = haiku_constant!('_','P','T','L') as i32;
 const INITIAL_BUFFER_SIZE: usize = 2048;
@@ -30,6 +26,7 @@ const BUFFER_WATERMARK: u64 = INITIAL_BUFFER_SIZE as u64 - 24;
 const MAX_BUFFER_SIZE: usize = 65536;
 const MAX_STRING_SIZE: usize = 4096;
 const NEEDS_REPLY: u32 = 0x01;
+const HEADER_SIZE: usize = 12;
 
 #[allow(dead_code)]
 pub(crate) mod server_protocol {
@@ -82,7 +79,7 @@ impl LinkSender {
 		self.end_message(false)?;
 
 		// Switch memory allocation method when size is larger than the buffersize
-		size_hint += mem::size_of::<message_header>();
+		size_hint += HEADER_SIZE;
 		if size_hint > MAX_BUFFER_SIZE {
 			unimplemented!()
 		}
@@ -172,18 +169,195 @@ impl LinkSender {
 	}
 }
 
+// Struct that implements receiving the special link messages from the server protocol
+//
+// Messages are read from the internal buffer, if there are no more messages
+// in the internal buffer, new data will be requested from the port.
+//
+// This class implements the iterator protocol to get new messages.
+//
+// The class contains an internal buffer with messages that use the link
+// protocol format. The buffer contains 0 or more messages. The cursor points
+// to the current reading position.
+//
+// A message consists of a message header, and 0 or more bytes of data. The
+// methods on this object basically deserialize the data into formats that the
+// consumer uses.
+//
+// The reader can be in 3 states:
+//  1. the buffer is empty
+//  2. the buffer contains data; the cursor is at the beginning of a message
+//  3. the buffer contains data; the cursor is in the data stream of a message
+//
+// REVIEW: the LinkReceiver currently aborts on invalid data. It could be argued
+//         that it should me made more fault-intolerant (either for allowing future
+//         changes to the protocol, or because we are basically operating on foreign
+//         data).
+#[derive(Debug,PartialEq)]
+enum Position {
+	Start(usize),
+	Inside(usize, usize),
+	Empty
+}
+
 pub(crate) struct LinkReceiver {
-	port: Port
+	port: Port,
+	buffer: Vec<u8>,
+	position: Position
+}
+
+impl Iterator for LinkReceiver {
+	type Item = (u32, usize, bool);
+
+	fn next(&mut self) -> Option<Self::Item> {
+		None
+	}
 }
 
 impl LinkReceiver {
-	pub(crate) fn get_next_message(&mut self) -> Result<i32> {
-		Ok((0))
+	// read data. If T has a variable size, the size parameter needs to be passed. If T is a fixed size, it is ignored.
+	pub(crate) fn read<T: Flattenable<T>>(&mut self, mut size: usize) -> Result<(T)> {
+		let (pos, end) = match self.position {
+			Position::Start(_) => return Err(HaikuError::new(ErrorKind::NotAllowed, "LinkReceiver currently is at the start of a message, read the header data first")),
+			Position::Inside(pos,end) => (pos, end),
+			Position::Empty => return Err(HaikuError::new(ErrorKind::NotAllowed, "LinkReceiver currently is not reading a message, read the header data first")),
+		};
+
+		// Do some checks on size
+		if T::is_fixed_size() {
+			size = mem::size_of::<T>();
+		}
+		if size > (end - pos) {
+			return Err(HaikuError::new(ErrorKind::InvalidData, "size of the data is larger than the remainder of the buffer"));
+		}
+		// Try to unflatten the data
+		let result = T::unflatten(&self.buffer[pos..pos+size]);
+		if result.is_ok() {
+			self.position = Position::Inside(pos + size, end);
+		}
+		result
 	}
-	
-	pub(crate) fn read<T: Flattenable<T>>(&mut self, data: &T) -> Result<()> {
-		Ok(())
-	} 
+
+	// Helper function to read a string
+	pub(crate) fn read_string(&mut self) -> Result<String> {
+		let (mut pos, end) = match self.position {
+			Position::Start(_) => return Err(HaikuError::new(ErrorKind::NotAllowed, "LinkReceiver currently is at the start of a message, read the header data first")),
+			Position::Inside(pos,end) => (pos, end),
+			Position::Empty => return Err(HaikuError::new(ErrorKind::NotAllowed, "LinkReceiver currently is not reading a message, read the header data first")),
+		};
+
+		let size = self.read::<i32>(0)?;
+		// if the size < 0 we are probably reading invalid data, so rewind
+		if size < 0 {
+			self.position = Position::Inside(pos, end);
+			return Err(HaikuError::new(ErrorKind::InvalidData, "Invalid size for string"))
+		} else {
+			pos += mem::size_of::<i32>();
+		}
+
+		if size == 0 {
+			Ok(String::new())
+		} else {
+			let size: usize = size as usize;
+			if size > (end - pos) {
+				return Err(HaikuError::new(ErrorKind::InvalidData, "size of the data is larger than the remainder of the buffer"));
+			}
+			// don't use regular unflattening, as our strings are not \0 terminated
+			let data = match str::from_utf8(&self.buffer[pos..pos+size]) {
+				Ok(borrowed_data) => String::from(borrowed_data),
+				Err(_) => return Err(HaikuError::new(ErrorKind::InvalidData, "the string contains invalid characters"))
+			};
+			self.position = Position::Inside(pos+size, end);
+			Ok(data)
+		}
+	}
+
+	/// Fetch new messages from port.
+	/// If there are no new messages (and the port_buffer_size_etc() request times out), return Ok()
+	fn fetch_from_port(&mut self) -> Result<()> {
+		// check if we need to adjust the size of the buffer
+		let mut buffer_size: ssize_t =  B_INTERRUPTED as ssize_t;
+		while buffer_size == (B_INTERRUPTED as ssize_t) {
+			buffer_size = unsafe { port_buffer_size_etc(self.port.get_port_id(), B_TIMEOUT, 0) };
+		}
+		if buffer_size < 0 {
+			return Err(HaikuError::from_raw_os_error(buffer_size as i32));
+		} else if buffer_size == 0 {
+			// no new data, reset the buffer nontheless.
+			unsafe { self.buffer.set_len(0); };
+			self.position = Position::Empty;
+			return Ok(());
+		}
+
+		let buffer_size = buffer_size as usize; // convert to usize
+
+		if buffer_size > MAX_BUFFER_SIZE {
+			panic!("LinkReceiver buffer size is larger than the maximum buffer size");
+		}
+
+		if buffer_size > self.buffer.capacity() {
+			let additional = buffer_size - self.buffer.len();
+			self.buffer.reserve(buffer_size as usize);
+		}
+
+		// read data from port
+		let pbuffer = self.buffer.as_mut_ptr();
+		let mut len: ssize_t = B_INTERRUPTED as ssize_t;
+		let mut type_code: i32 = 0;
+		while len == (B_INTERRUPTED as ssize_t) {
+			len = unsafe { read_port_etc(self.port.get_port_id(), &mut type_code, pbuffer, buffer_size, B_TIMEOUT, 0) };
+		}
+		if len > 0 && len != buffer_size as isize {
+			panic!("read_port does not return the expected number of bytes");
+		}
+
+		if len < 0 {
+			self.invalidate_buffer();
+			Err(HaikuError::from_raw_os_error(len as i32))
+		} else if type_code != LINK_CODE {
+			panic!("read_port does not return the expected type code");
+		} else {
+			unsafe { self.buffer.set_len(len as usize); };
+			self.position = Position::Start(0);
+			Ok(())
+		}
+	}
+
+	fn get_next_message_from_buffer(&mut self) -> Option<(u32, usize, bool)> {
+		match self.position {
+			Position::Start(pos) => self.read_message_header(pos),
+			Position::Inside(_, end) => self.read_message_header(end),
+			Position::Empty => None
+		}
+	}
+
+	fn read_message_header(&mut self, mut pos: usize) -> Option<(u32, usize, bool)> {
+		// Check if the buffer is large enough to have a header
+		if self.buffer.len() - pos < HEADER_SIZE {
+			self.invalidate_buffer();
+			return None;
+		}
+
+		// REVIEW: sizes are hardcoded here
+		let size = i32::unflatten(&self.buffer[pos..pos+4]).unwrap() as usize;
+		let code = u32::unflatten(&self.buffer[pos+4..pos+8]).unwrap();
+		let flags = u32::unflatten(&self.buffer[pos+8..pos+12]).unwrap();
+
+		if size < HEADER_SIZE || size > (self.buffer.len() - pos) {
+			self.invalidate_buffer();
+			return None;
+		}
+
+		// Move the position to after the header
+		self.position = Position::Inside(pos + HEADER_SIZE, pos + size);
+
+		Some((code, size, (flags | NEEDS_REPLY) != 0))
+	}
+
+	fn invalidate_buffer(&mut self) {
+		self.buffer.clear();
+		self.position = Position::Empty;
+	}
 }
 
 pub(crate) struct ServerLink {
@@ -221,7 +395,11 @@ impl ServerLink {
 				cursor: sender_cursor,
 				current_message_start: 0
 			},
-			receiver: LinkReceiver{ port: receiver_port } 
+			receiver: LinkReceiver{
+				port: receiver_port,
+				buffer: Vec::with_capacity(INITIAL_BUFFER_SIZE),
+				position: Position::Empty
+			}
 		})
 	}
 }
@@ -238,29 +416,59 @@ fn test_server_link() {
 }
 
 #[test]
-fn test_link_sender_behaviour() {
-	let sender_port = Port::create("mock_sender", DEFAULT_PORT_CAPACITY).unwrap();
+fn test_link_sender_receiver_behaviour() {
+	let receiver_port = Port::create("mock_receiver", DEFAULT_PORT_CAPACITY).unwrap();
+	let sender_port = Port::from_id(receiver_port.get_port_id()).unwrap();
 	let sender_cursor = Cursor::new(Vec::with_capacity(INITIAL_BUFFER_SIZE));
 	let mut sender = LinkSender {
 		port: sender_port,
 		cursor: sender_cursor,
 		current_message_start: 0
 	};
+	let mut receiver = LinkReceiver {
+		port: receiver_port,
+		buffer: Vec::with_capacity(INITIAL_BUFFER_SIZE),
+		position: Position::Empty
+	};
+
 	// Scenario 1
 	//  Start a message
-	//  Attach an integer
-	//  Attach a string
-	//  Mark as reply needed
-	//  Flush
+	//    Attach an integer
+	//    Attach a string
+	//    Mark as reply needed
+	//    Flush
+	//  Receive the message
+	//    Check the code and reply_needed
+	//    Read the integer
+	//    Read the string
+	//  Check that there are no more messages in the queue
 	sender.start_message(99, 0).unwrap();
 	sender.attach(&(-1 as i32)).unwrap();
-	sender.attach_string("this is a test string").unwrap();
+	let test_string = "this is a test string";
+	sender.attach_string(test_string).unwrap();
 	assert_eq!(sender.cursor.position(), 41);
 	sender.end_message(true).unwrap();
 	let comparison: Vec<u8> = vec!(41, 0, 0, 0, 99, 0, 0, 0, 1, 0, 0, 0, 255, 255, 255, 255, 21, 0, 0, 0, 116, 104, 105, 115, 32, 105, 115, 32, 97, 32, 116, 101, 115, 116, 32, 115, 116, 114, 105, 110, 103);
 	assert_eq!(sender.cursor.get_ref(), &comparison);
 	sender.flush(true).unwrap();
 	assert_eq!(sender.cursor.position(), 0);
+
+	assert!(receiver.fetch_from_port().is_ok());
+	assert_eq!(&receiver.buffer, &comparison);
+	assert_eq!(receiver.position, Position::Start(0));
+
+	let (code, size, needs_reply) = receiver.get_next_message_from_buffer().unwrap();
+	assert_eq!(size, 41);
+	assert_eq!(code, 99);
+	assert_eq!(needs_reply, true);
+	assert_eq!(receiver.position, Position::Inside(12, 41));
+	let data_1 = receiver.read::<i32>(165).unwrap(); // the size parameter should be ignored, since i32 is fixed size
+	assert_eq!(data_1, -1);
+	let data_2 = receiver.read_string().unwrap();
+	assert_eq!(data_2, test_string);
+	assert_eq!(receiver.position, Position::Inside(41, 41));
+	assert!(receiver.get_next_message_from_buffer().is_none());
+	assert_eq!(receiver.position, Position::Empty);
 
 	// Scenario 2
 	//  Start a message
