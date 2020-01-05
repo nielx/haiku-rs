@@ -210,7 +210,25 @@ impl Iterator for LinkReceiver {
 	type Item = (u32, usize, bool);
 
 	fn next(&mut self) -> Option<Self::Item> {
-		None
+		// check if the current buffer is empty or if we are at the end
+		let fetch: bool = match self.position {
+			Position::Empty => true,
+			Position::Start(pos) => false,
+			Position::Inside(pos, end) => {
+				if end == self.buffer.len() {
+					true
+				} else {
+					false
+				}
+			}
+		};
+		if fetch {
+			match self.fetch_from_port() {
+				Ok(_) => (),
+				Err(_) => return None
+			}
+		}
+		self.get_next_message_from_buffer()
 	}
 }
 
@@ -351,7 +369,7 @@ impl LinkReceiver {
 		// Move the position to after the header
 		self.position = Position::Inside(pos + HEADER_SIZE, pos + size);
 
-		Some((code, size, (flags | NEEDS_REPLY) != 0))
+		Some((code, size, (flags & NEEDS_REPLY) != 0))
 	}
 
 	fn invalidate_buffer(&mut self) {
@@ -481,12 +499,26 @@ fn test_link_sender_receiver_behaviour() {
 	assert_eq!(sender.cursor.position(), 0);
 
 	// Scenario 3
-	// Start message 1 (no data)
-	// Start message 2 with size hint above water mark
-	// Check if first message is flushed by looking at the cursor position
+	//  Start message 1 (no data)
+	//  Start message 2 with size hint above water mark
+	//  Check if first message is flushed by looking at the cursor position
 	sender.start_message(101, 0).unwrap();
 	sender.start_message(102, 2020).unwrap();
 	assert_eq!(sender.cursor.position(), 12);
+
+	// Receiver check (scenario 2 + 3)
+	let mut count: u32 = 100;
+	for (code, size, reply) in receiver {
+		assert_eq!(count, code);
+		assert_eq!(reply, false);
+		count += 1;
+		// at message 101 we are at the last message in queue, then add the 102
+		// message to see if the code properly fetches new messages from port.
+		if code == 101 {
+			sender.flush(false).unwrap();
+		}
+	}
+	assert_eq!(count, 103);
 }
 
 	
