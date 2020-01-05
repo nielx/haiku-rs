@@ -90,9 +90,9 @@ impl LinkSender {
 		}
 
 		// Store the start of the header pos, and write the code to the buffer
-		self.cursor.write(&(0 as i32).flatten());
-		self.cursor.write(&code.flatten());
-		self.cursor.write(&(0 as u32).flatten());
+		self.cursor.write(&(0 as i32).flatten()).unwrap();
+		self.cursor.write(&code.flatten()).unwrap();
+		self.cursor.write(&(0 as u32).flatten()).unwrap();
 
 		Ok(())
 	}
@@ -108,10 +108,10 @@ impl LinkSender {
 		let last_position = self.cursor.position();
 		let size: i32 = (last_position - self.current_message_start) as i32;
 		self.cursor.set_position(self.current_message_start);
-		self.cursor.write(&size.flatten());
+		self.cursor.write(&size.flatten()).unwrap();
 		if needs_reply {
-			self.cursor.seek(SeekFrom::Current(mem::size_of::<u32>() as i64));
-			self.cursor.write(&NEEDS_REPLY.flatten());
+			self.cursor.seek(SeekFrom::Current(mem::size_of::<u32>() as i64)).unwrap();
+			self.cursor.write(&NEEDS_REPLY.flatten()).unwrap();
 		}
 		self.cursor.set_position(last_position);
 		self.current_message_start = last_position;
@@ -130,7 +130,7 @@ impl LinkSender {
 		}
 
 		// Write data to the buffer
-		self.cursor.write(&data.flatten());
+		self.cursor.write(&data.flatten()).unwrap();
 
 		Ok(())
 	}
@@ -143,8 +143,8 @@ impl LinkSender {
 		}
 
 		let size = data.len() as i32;
-		self.cursor.write(&size.flatten());
-		self.cursor.write(data.as_bytes());
+		self.cursor.write(&size.flatten()).unwrap();
+		self.cursor.write(data.as_bytes()).unwrap();
 
 		Ok(())
 	}
