@@ -1,16 +1,16 @@
 //
-// Copyright 2019, Niels Sascha Reedijk <niels.reedijk@gmail.com>
+// Copyright 2019-2020, Niels Sascha Reedijk <niels.reedijk@gmail.com>
 // All rights reserved. Distributed under the terms of the MIT License.
 //
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::mem;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, atomic};
 
 use haiku_sys::{thread_info, thread_id, find_thread, get_thread_info, team_id};
 
 use ::app::{B_READY_TO_RUN, Handler, Message, Messenger};
-use ::app::looper::Looper;
+use ::app::looper::{HandlerType, Looper, NEXT_HANDLER_TOKEN};
 use ::app::roster::{ROSTER, ApplicationRegistrationStatus};
 use ::app::sys::get_app_path;
 use ::kernel::ports::Port;
@@ -73,11 +73,13 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 			application_messenger: Messenger::from_port(&port).unwrap(),
 			application_state: state.clone()
 		};
+		let mut handlers = HashMap::new();
+		handlers.insert(NEXT_HANDLER_TOKEN.fetch_add(1, atomic::Ordering::Relaxed), HandlerType::LooperState);
 		let mut inner_looper = Looper {
 			name: String::from("application"),
 			port: port,
 			message_queue: VecDeque::new(),
-//			handlers: Vec::new(),
+			handlers: handlers,
 			context: context,
 			state: default_looper_state,
 			terminating: false
@@ -101,11 +103,13 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 			application_messenger: self.inner_looper.get_messenger(),
 			application_state: self.state.clone()
 		};
+		let mut handlers = HashMap::new();
+		handlers.insert(NEXT_HANDLER_TOKEN.fetch_add(1, atomic::Ordering::Relaxed), HandlerType::LooperState);
 		Looper {
 			name: String::from(name),
 			port: port,
 			message_queue: VecDeque::new(),
-//			handlers: vec![initial_handler],
+			handlers: handlers,
 			context: context,
 			state: initial_state,
 			terminating: false
@@ -264,6 +268,6 @@ mod tests {
 		let mut message = Message::new(ADD_TO_COUNTER);
 		messenger_2.send_and_ask_reply(message, &app_messenger);
 
-		application.run();
+		application.run(); 
 	}
 }

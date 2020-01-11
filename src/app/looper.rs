@@ -1,10 +1,11 @@
 //
-// Copyright 2019, Niels Sascha Reedijk <niels.reedijk@gmail.com>
+// Copyright 2019, 2020 Niels Sascha Reedijk <niels.reedijk@gmail.com>
 // All rights reserved. Distributed under the terms of the MIT License.
 //
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::marker::Send;
+use std::sync::atomic::AtomicI32;
 use std::thread;
 use std::time::Duration;
 
@@ -17,11 +18,16 @@ pub trait Handler<A> where A: Send + 'static {
 	fn message_received(&mut self, context: &Context<A>, message: &Message);
 }
 
+pub(crate) enum HandlerType<A> where A: Send + 'static {
+	OwnedHandler(Box<dyn Handler<A> + Send>),
+	LooperState
+}
+
 pub struct Looper<A> where A: Send + 'static {
 	pub(crate) name: String,
 	pub(crate) port: Port,
 	pub(crate) message_queue: VecDeque<Message>,
-//	pub(crate) handlers: Vec<Box<dyn Handler<A> + Send>>,
+	pub(crate) handlers: HashMap<i32, HandlerType<A>>,
 	pub(crate) context: Context<A>,
 	pub(crate) state: Box<dyn Handler<A> + Send>,
 	pub(crate) terminating: bool
@@ -129,3 +135,14 @@ impl<A> Looper<A> where A: Send + 'static {
 		}
 	}
 }
+
+/// The following global counter creates new unique tokens to identify handlers.
+// The original class also kept an accounting of the associated Handler objects
+// so that they can be addressed directly. This does not fit the memory
+// ownership model of Rust.
+// Additionally, the original implementation recycles tokens once Handers
+// disappear. Let's consider this a TODO.
+// Also: the token counter is part of the looper module here, but it might
+// as well be in the application object... to do.
+pub(crate) static NEXT_HANDLER_TOKEN: AtomicI32 = AtomicI32::new(2);
+
