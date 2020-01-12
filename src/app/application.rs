@@ -7,12 +7,14 @@ use std::collections::{HashMap, VecDeque};
 use std::mem;
 use std::sync::{Arc, Mutex, atomic};
 
-use haiku_sys::{thread_info, thread_id, find_thread, get_thread_info, team_id};
+use haiku_sys::{thread_info, thread_id, find_thread, get_thread_info, port_id, team_id};
 
-use ::app::{B_READY_TO_RUN, Handler, Message, Messenger};
+use ::app::{B_READY_TO_RUN, B_QUIT_REQUESTED, Handler, Message, Messenger};
 use ::app::looper::{HandlerType, Looper, NEXT_HANDLER_TOKEN};
 use ::app::roster::{ROSTER, ApplicationRegistrationStatus};
+use ::app::serverlink::{ServerLink, server_protocol};
 use ::app::sys::get_app_path;
+use ::kernel::INFINITE_TIMEOUT;
 use ::kernel::ports::Port;
 use ::storage::MimeType;
 use ::storage::sys::entry_ref;
@@ -23,7 +25,8 @@ const LOOPER_PORT_DEFAULT_CAPACITY: i32 = 200;
 pub struct Application<A> where A: ApplicationHooks + Send + 'static {
 	state: Arc<Mutex<A>>,
 	inner_looper: Looper<A>,
-	signature: MimeType
+	signature: MimeType,
+	link: ServerLink
 }
 
 impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
@@ -74,7 +77,8 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 			application_state: state.clone()
 		};
 		let mut handlers = HashMap::new();
-		handlers.insert(NEXT_HANDLER_TOKEN.fetch_add(1, atomic::Ordering::Relaxed), HandlerType::LooperState);
+		let handler_token = NEXT_HANDLER_TOKEN.fetch_add(1, atomic::Ordering::Relaxed);
+		handlers.insert(handler_token, HandlerType::LooperState);
 		let mut inner_looper = Looper {
 			name: String::from("application"),
 			port: port,
@@ -87,11 +91,36 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 		
 		// Add the READY_TO_RUN message to the queue
 		inner_looper.message_queue.push_back(Message::new(B_READY_TO_RUN));
-		
+
+		// Connect to the app_server
+		let mut link = ServerLink::create_desktop_connection().unwrap();
+		// AS_CREATE_APP:
+		// Data: 1) port_id - receiver port of the serverlink
+		//       2) port_id - looper port for this BApplication
+		//       3) team_id - the team id for this application
+		//       4) i32 - the handler ID token of this app
+		//       5) &str - signature of this app
+		link.sender.start_message(server_protocol::AS_CREATE_APP, 0).unwrap();
+		link.sender.attach(&link.receiver.port.get_port_id()).unwrap();
+		link.sender.attach(&inner_looper.port.get_port_id()).unwrap();
+		link.sender.attach(&team).unwrap();
+		link.sender.attach(&handler_token).unwrap();
+		link.sender.attach_string(signature).unwrap();
+		link.sender.flush(true).unwrap();
+		let message = link.receiver.get_next_message(INFINITE_TIMEOUT).unwrap();
+		if message.0 != 0 {
+			panic!("Cannot register the application at the app_server");
+		}
+		let server_port: port_id = link.receiver.read(0).unwrap();
+		let _: i32 = link.receiver.read(0).unwrap(); // area id, ignore for now
+		let _: i32 = link.receiver.read(0).unwrap(); // team id, ignore for now
+		link.sender.set_port(Port::from_id(server_port).unwrap());
+
 		Self {
 			state: state,
 			inner_looper: inner_looper,
-			signature: mime_type
+			signature: mime_type,
+			link: link
 		}
 	}
 
@@ -132,6 +161,10 @@ impl<A> Drop for Application<A> where A: ApplicationHooks + Send + 'static {
 		// Unregister from Registrar
 		let (team, _) = get_current_team_and_thread();
 		let _ = ROSTER.remove_application(team);
+
+		// Unregister from the app_server
+		self.link.sender.start_message(B_QUIT_REQUESTED as i32, 0).unwrap();
+		self.link.sender.flush(false).unwrap();
 	}
 }
 

@@ -10,6 +10,7 @@ use std::env;
 use std::io::{Cursor, Seek, SeekFrom, Write};
 use std::mem;
 use std::str;
+use std::time::Duration;
 
 use libc::ssize_t;
 use haiku_sys::{port_id, read_port_etc, port_buffer_size_etc, B_TIMEOUT};
@@ -167,6 +168,10 @@ impl LinkSender {
 	pub(crate) fn get_port_id(&self) -> port_id {
 		self.port.get_port_id()
 	}
+
+	pub(crate) fn set_port(&mut self, port: Port) {
+		self.port = port;
+	}
 }
 
 // Struct that implements receiving the special link messages from the server protocol
@@ -201,7 +206,7 @@ enum Position {
 }
 
 pub(crate) struct LinkReceiver {
-	port: Port,
+	pub(crate) port: Port,
 	buffer: Vec<u8>,
 	position: Position
 }
@@ -210,6 +215,12 @@ impl Iterator for LinkReceiver {
 	type Item = (u32, usize, bool);
 
 	fn next(&mut self) -> Option<Self::Item> {
+		self.get_next_message(Duration::new(0, 0))
+	}
+}
+
+impl LinkReceiver {
+	pub(crate) fn get_next_message(&mut self, timeout: Duration) -> Option<(u32, usize, bool)> {
 		// check if the current buffer is empty or if we are at the end
 		let fetch: bool = match self.position {
 			Position::Empty => true,
@@ -223,16 +234,14 @@ impl Iterator for LinkReceiver {
 			}
 		};
 		if fetch {
-			match self.fetch_from_port() {
+			match self.fetch_from_port(timeout) {
 				Ok(_) => (),
 				Err(_) => return None
 			}
 		}
 		self.get_next_message_from_buffer()
 	}
-}
 
-impl LinkReceiver {
 	// read data. If T has a variable size, the size parameter needs to be passed. If T is a fixed size, it is ignored.
 	pub(crate) fn read<T: Flattenable<T>>(&mut self, mut size: usize) -> Result<(T)> {
 		let (pos, end) = match self.position {
@@ -292,11 +301,12 @@ impl LinkReceiver {
 
 	/// Fetch new messages from port.
 	/// If there are no new messages (and the port_buffer_size_etc() request times out), return Ok()
-	fn fetch_from_port(&mut self) -> Result<()> {
+	fn fetch_from_port(&mut self, timeout: Duration) -> Result<()> {
+		let timeout_ms = timeout.as_secs() as i64 * 1_000_000 + timeout.subsec_micros() as i64;
 		// check if we need to adjust the size of the buffer
 		let mut buffer_size: ssize_t =  B_INTERRUPTED as ssize_t;
 		while buffer_size == (B_INTERRUPTED as ssize_t) {
-			buffer_size = unsafe { port_buffer_size_etc(self.port.get_port_id(), B_TIMEOUT, 0) };
+			buffer_size = unsafe { port_buffer_size_etc(self.port.get_port_id(), B_TIMEOUT, timeout_ms) };
 		}
 		if buffer_size < 0 {
 			return Err(HaikuError::from_raw_os_error(buffer_size as i32));
@@ -380,14 +390,14 @@ impl LinkReceiver {
 
 pub(crate) struct ServerLink {
 	pub(crate) sender: LinkSender,
-	receiver: LinkReceiver
+	pub(crate) receiver: LinkReceiver
 }
 
 const APPSERVER_PORT_NAME: &str = "a<app_server";
 const DEFAULT_PORT_CAPACITY: i32 = 100;
 
 impl ServerLink {
-	fn create_desktop_connection() -> Result<ServerLink> {
+	pub(crate) fn create_desktop_connection() -> Result<ServerLink> {
 		let receiver_port = Port::create(APPSERVER_PORT_NAME, DEFAULT_PORT_CAPACITY)?; 
 
 		let mut request = Message::new(server_protocol::AS_GET_DESKTOP as u32);
@@ -471,7 +481,7 @@ fn test_link_sender_receiver_behaviour() {
 	sender.flush(true).unwrap();
 	assert_eq!(sender.cursor.position(), 0);
 
-	assert!(receiver.fetch_from_port().is_ok());
+	assert!(receiver.fetch_from_port(Duration::new(0,0)).is_ok());
 	assert_eq!(&receiver.buffer, &comparison);
 	assert_eq!(receiver.position, Position::Start(0));
 
