@@ -147,7 +147,7 @@ pub trait AttributeExt {
 	/// trait to the file system.
 	fn write_attribute<T: Flattenable<T>>(&self, name: &str, value: &T) -> io::Result<()> {
 		let data = value.flatten();
-		try!(self.write_attribute_raw(name, T::type_code(), 0, &data));
+		self.write_attribute_raw(name, T::type_code(), 0, &data)?;
 		Ok(())
 	}
 }
@@ -179,7 +179,7 @@ impl AttributeExt for File {
 		let fd = self.as_raw_fd();
 		
 		// Get attribute stat
-		let descriptor = try!(self.find_attribute(name));
+		let descriptor = self.find_attribute(name)?;
 
 		// Validate input
 		if descriptor.size < pos {
@@ -234,7 +234,7 @@ impl AttributeExt for File {
 
 impl AttributeExt for Path {
 	fn iter_attributes(&self) -> io::Result<AttributeIterator> {
-		let file = try!(File::open(self));
+		let file = File::open(self)?;
 		let d = unsafe { fs_fopen_attr_dir(file.as_raw_fd()) };
 		
 		if (d as u32) == 0 {
@@ -245,26 +245,26 @@ impl AttributeExt for Path {
 	}
 	
 	fn find_attribute(&self, name: &str) -> io::Result<AttributeDescriptor> {
-		let file = try!(File::open(self));
+		let file = File::open(self)?;
 		file.find_attribute(name)
 	}
 	
 	fn read_attribute_raw(&self, name: &str, raw_type: u32, pos: off_t, size: i64) -> io::Result<Vec<u8>> {
-		let file = try!(File::open(self));
+		let file = File::open(self)?;
 		file.read_attribute_raw(name, raw_type, pos, size)
 	}
 	
 	fn write_attribute_raw(&self, name: &str, raw_type: u32, pos: off_t, buffer: &[u8]) -> io::Result<()> {
 		use std::fs::OpenOptions;
 		
-		let file = try!(OpenOptions::new().write(true).open(self));
+		let file = OpenOptions::new().write(true).open(self)?;
 		file.write_attribute_raw(name, raw_type, pos, buffer)
 	}
 	
 	fn remove_attribute(&self, name: &str) -> io::Result<()> {
 		use std::fs::OpenOptions;
 		
-		let file = try!(OpenOptions::new().write(true).open(self));
+		let file = OpenOptions::new().write(true).open(self)?;
 		file.remove_attribute(name)
 	}
 }

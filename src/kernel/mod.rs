@@ -175,7 +175,7 @@ pub mod ports {
 		/// This method reads the next message from the port. The data is 
 		/// returned as a tuple of a type code and a buffer. The method waits
 		/// until there is a next message.
-		pub fn read(&self) -> Result<((i32, Vec<u8>))> {
+		pub fn read(&self) -> Result<(i32, Vec<u8>)> {
 			if !self.owned {
 				panic!("You are trying to read from a port that you do not own. This is not allowed");
 			}
@@ -209,7 +209,7 @@ pub mod ports {
 		/// until there is a next message, or until when a timeout if reached.
 		/// If you don't want to wait for a message to come in, you can set the
 		/// timeout to 0
-		pub fn try_read(&self, timeout: Duration) -> Result<((i32, Vec<u8>))> {
+		pub fn try_read(&self, timeout: Duration) -> Result<(i32, Vec<u8>)> {
 			if !self.owned {
 				panic!("You are trying to read from a port that you do not own. This is not allowed");
 			}

@@ -10,7 +10,6 @@ use ::app::messenger::Messenger;
 use ::kernel::helpers;
 use ::kernel::ports::Port;
 use ::kernel::teams::Team;
-use ::support;
 use ::support::{ErrorKind, Flattenable, HaikuError, Result};
 use ::storage::sys::entry_ref;
 
@@ -162,7 +161,7 @@ impl Roster {
 			if !full_registration && team < 0 {
 				let token: i32 = match response.find_data("token", 0) {
 					Ok(token) => token,
-					Err(_) => return Err(support::HaikuError::new(support::ErrorKind::InvalidData, "No token for preregistration by Registrar"))
+					Err(_) => return Err(HaikuError::new(ErrorKind::InvalidData, "No token for preregistration by Registrar"))
 				};
 				Ok(ApplicationRegistrationResult::PreRegistered(token))
 			} else {
@@ -174,7 +173,7 @@ impl Roster {
 			if token.is_ok() && team.is_ok() {
 				Ok(ApplicationRegistrationResult::OtherInstance(team.unwrap(), token.unwrap()))
 			} else {
-				Err(support::HaikuError::new(support::ErrorKind::InvalidData, "Invalid registration response by Registrar"))
+				Err(HaikuError::new(ErrorKind::InvalidData, "Invalid registration response by Registrar"))
 			}
 		}
 	}
@@ -198,7 +197,7 @@ impl Roster {
 				Err(_) => None
 			};
 			if (pre_registered || registered) && app_info.is_none() {
-				Err(support::HaikuError::new(support::ErrorKind::InvalidData, "The Registrar returned an invalid response"))
+				Err(HaikuError::new(ErrorKind::InvalidData, "The Registrar returned an invalid response"))
 			} else if pre_registered {
 				Ok(ApplicationRegistrationStatus::PreRegistered(app_info.unwrap()))
 			} else if registered {
@@ -208,7 +207,7 @@ impl Roster {
 			}
 		} else {
 			let errno: i32 = response.find_data("error", 0).unwrap_or(-1);
-			Err(support::HaikuError::new(support::ErrorKind::InvalidData, format!("The Registrar returned an error on request: {}", errno)))
+			Err(HaikuError::new(ErrorKind::InvalidData, format!("The Registrar returned an error on request: {}", errno)))
 		}
 	}
 
@@ -223,7 +222,7 @@ impl Roster {
 			Ok(())
 		} else {
 			let error: status_t = response.find_data("error", 0).unwrap_or(B_ERROR);
-			Err(support::HaikuError::from_raw_os_error(error))
+			Err(HaikuError::from_raw_os_error(error))
 		}
 	}
 }
@@ -297,9 +296,9 @@ impl Flattenable<FlatAppInfo> for FlatAppInfo {
 		unimplemented!();
 	}
 
-	fn unflatten(buffer: &[u8]) -> support::Result<FlatAppInfo> {
+	fn unflatten(buffer: &[u8]) -> Result<FlatAppInfo> {
 		if mem::size_of::<FlatAppInfo>() != buffer.len() {
-			return Err(support::HaikuError::new(support::ErrorKind::InvalidData, "the buffer is smaller than the flattened app info struct"));
+			return Err(HaikuError::new(ErrorKind::InvalidData, "the buffer is smaller than the flattened app info struct"));
 		}
 		let app_info: FlatAppInfo = unsafe { ptr::read(buffer.as_ptr() as *const _) };
 		Ok(app_info)

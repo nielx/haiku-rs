@@ -243,7 +243,7 @@ impl LinkReceiver {
 	}
 
 	// read data. If T has a variable size, the size parameter needs to be passed. If T is a fixed size, it is ignored.
-	pub(crate) fn read<T: Flattenable<T>>(&mut self, mut size: usize) -> Result<(T)> {
+	pub(crate) fn read<T: Flattenable<T>>(&mut self, mut size: usize) -> Result<T> {
 		let (pos, end) = match self.position {
 			Position::Start(_) => return Err(HaikuError::new(ErrorKind::NotAllowed, "LinkReceiver currently is at the start of a message, read the header data first")),
 			Position::Inside(pos,end) => (pos, end),
