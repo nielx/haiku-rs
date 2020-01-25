@@ -56,11 +56,17 @@ impl<A> Looper<A> where A: Send + 'static {
 
 			// Try to read the first message from the port
 			// This will block until there is a message
-			match self.read_message_from_port(INFINITE_TIMEOUT) {
-				Ok(message) => self.message_queue.push_back(message),
-				Err(e) => {
-					println!("[{}] Error getting message: {:?}", self.name(), e); 
-					continue;
+			// Note that we check for anything in the queue because the
+			// Application object puts a READY_TO_RUN in the queue, and
+			// we want to guarantee that that one is processed, without
+			// getting stuck on waiting for messages in the port.
+			if self.message_queue.len() == 0 {
+				match self.read_message_from_port(INFINITE_TIMEOUT) {
+					Ok(message) => self.message_queue.push_back(message),
+					Err(e) => {
+						println!("[{}] Error getting message: {:?}", self.name(), e); 
+						continue;
+					}
 				}
 			}
 

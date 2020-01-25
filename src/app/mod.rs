@@ -11,6 +11,7 @@ mod application;
 mod looper;
 mod message;
 mod messenger;
+mod notification;
 mod roster;
 pub(crate) mod serverlink;
 pub(crate) mod sys;
@@ -19,6 +20,7 @@ pub use self::application::{Application, ApplicationHooks, Context};
 pub use self::looper::{Handler, Looper};
 pub use self::message::Message;
 pub use self::messenger::Messenger;
+pub use self::notification::{Notification, NotificationType};
 pub use self::roster::{ROSTER, AppInfo, Roster};
 
 pub const B_READY_TO_RUN: u32 = haiku_constant!('_','R','T','R');

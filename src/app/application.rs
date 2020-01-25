@@ -205,7 +205,7 @@ impl<A> Handler<A> for ApplicationLooperState
 
 /// Get the current team id and thread id
 // TODO: some caching
-fn get_current_team_and_thread() -> (team_id, thread_id) {
+pub(crate) fn get_current_team_and_thread() -> (team_id, thread_id) {
 	let mut info: thread_info = unsafe { mem::zeroed() };
 	let (team, thread) = unsafe {
 		if get_thread_info(find_thread(0 as *const i8), &mut info) == 0 {

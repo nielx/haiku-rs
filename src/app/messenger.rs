@@ -113,6 +113,21 @@ impl Messenger {
 		self.port.write(B_MESSAGE_TYPE as i32, &flattened_message).ok();
 		Ok(())
 	}
+
+	pub fn send(&self, mut message: Message, reply_to: &Messenger) -> Result<()> {
+		let info = reply_to.port.get_info()?;
+		// Fill out header info
+		message.header.target = B_PREFERRED_TOKEN; //TODO: allow other options
+		message.header.reply_port = reply_to.port.get_port_id();
+		message.header.reply_target = B_NULL_TOKEN;
+		message.header.reply_team = info.team.get_team_id();
+		message.header.flags |= MESSAGE_FLAG_WAS_DELIVERED;
+		message.header.flags &= !MESSAGE_FLAG_REPLY_DONE;
+
+		let flattened_message = message.flatten();
+		self.port.write(B_MESSAGE_TYPE as i32, &flattened_message).ok();
+		Ok(())
+	}
 }
 
 #[test]
