@@ -39,7 +39,7 @@ impl LaunchRoster {
 		message.add_data("user", &(uid as i32));
 
 		// Send message
-		let response = self.messenger.send_and_wait_for_reply(message)?;
+		let response = self.messenger.send_and_wait_for_reply(message, None)?;
 		Ok(response)
 	}
 }
@@ -73,7 +73,7 @@ impl Roster {
 	/// will return None.
 	pub fn get_app_list(&self) -> Option<Vec<Team>> {
 		let request = Message::new(haiku_constant!('r','g','a','l'));
-		let response = self.messenger.send_and_wait_for_reply(request);
+		let response = self.messenger.send_and_wait_for_reply(request, None);
 
 		if response.is_err() {
 			return None;
@@ -102,7 +102,7 @@ impl Roster {
 	pub fn get_running_app_info(&self, team: &Team) -> Option<AppInfo> {
 		let mut request = Message::new(haiku_constant!('r','g','a','i'));
 		request.add_data("team", &team.get_team_id());
-		let response = self.messenger.send_and_wait_for_reply(request);
+		let response = self.messenger.send_and_wait_for_reply(request, None);
 
 		if response.is_err() {
 			println!("Response.is err");
@@ -128,7 +128,7 @@ impl Roster {
 	pub fn get_app_info(&self, signature: &str) -> Option<AppInfo> {
 		let mut request = Message::new(haiku_constant!('r','g','a','i'));
 		request.add_data("signature", &String::from(signature));
-		let response = self.messenger.send_and_wait_for_reply(request);
+		let response = self.messenger.send_and_wait_for_reply(request, None);
 		
 		if response.is_err() {
 			return None;
@@ -156,7 +156,7 @@ impl Roster {
 		request.add_data("thread", &thread);
 		request.add_data("port", &port);
 		request.add_data("full_registration", &full_registration);
-		let response = self.messenger.send_and_wait_for_reply(request)?;
+		let response = self.messenger.send_and_wait_for_reply(request, None)?;
 		if response.what() == B_REG_SUCCESS {
 			if !full_registration && team < 0 {
 				let token: i32 = match response.find_data("token", 0) {
@@ -188,7 +188,7 @@ impl Roster {
 		request.add_data("team", &team);
 		request.add_data("token", &(token as i32));
 
-		let response = self.messenger.send_and_wait_for_reply(request)?;
+		let response = self.messenger.send_and_wait_for_reply(request, None)?;
 		if response.what() == B_REG_SUCCESS {
 			let registered: bool = response.find_data("registered", 0).unwrap_or(false);
 			let pre_registered: bool = response.find_data("pre-registered", 0).unwrap_or(false);
@@ -217,7 +217,7 @@ impl Roster {
 		let mut request = Message::new(haiku_constant!('r','g','r','a'));
 		request.add_data("team", &team);
 
-		let response = self.messenger.send_and_wait_for_reply(request)?;
+		let response = self.messenger.send_and_wait_for_reply(request, None)?;
 		if response.what() == B_REG_SUCCESS {
 			Ok(())
 		} else {

@@ -306,7 +306,19 @@ pub mod ports {
 			self.port
 		}
 	}
-	
+
+	impl Clone for Port {
+		/// Create a borrowed clone of the Port
+		///
+		/// A clone is always borrowed, whether the original is owned or not.
+		/// The implication is that you have to make sure that the original
+		/// Port will outlive any of its clones, if you want to keep using any
+		/// clones.
+		fn clone(&self) -> Self {
+			Port { port: self.port, owned: false }
+		}
+	} 
+
 	impl Drop for Port {
 		fn drop(&mut self) {
 			if self.owned {

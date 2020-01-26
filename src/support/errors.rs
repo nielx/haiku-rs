@@ -65,6 +65,9 @@ pub enum ErrorKind {
 	/// user has insufficient privileges, or the target of the operation does
 	/// not allow it.
 	NotAllowed,
+	/// This error is returned whenever an operation may fail because it times
+	/// out.
+	TimedOut,
 	/// This leftover category is for any other error.
 	///
 	/// Sometimes a lower level system error is not properly mapped to a higher
@@ -80,6 +83,7 @@ impl ErrorKind {
 			ErrorKind::InvalidInput => "invalid input parameter",
 			ErrorKind::NotFound => "entity not found",
 			ErrorKind::NotAllowed => "operation not allowed",
+			ErrorKind::TimedOut => "operation timed out",
 			ErrorKind::Other => "other os error",
 		}
 	}
@@ -216,6 +220,7 @@ fn decode_error_kind(errno: status_t) -> ErrorKind {
 		B_BAD_DATA => ErrorKind::InvalidData,
 		B_DONT_DO_THAT => ErrorKind::InvalidInput,
 		B_NOT_ALLOWED => ErrorKind::NotAllowed,
+		B_TIMED_OUT => ErrorKind::TimedOut,
 		_ => ErrorKind::Other
 	}
 }

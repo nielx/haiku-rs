@@ -412,7 +412,7 @@ impl ServerLink {
 		}
 
 		let server = Messenger::from_signature("application/x-vnd.Haiku-app_server", None)?;
-		let reply = server.send_and_wait_for_reply(request)?;
+		let reply = server.send_and_wait_for_reply(request, None)?;
 		println!("{:?}", reply);
 
 		let server_port: port_id = reply.find_data("port", 0)?;
