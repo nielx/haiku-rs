@@ -5,16 +5,27 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::marker::Send;
+use std::sync::atomic;
 use std::sync::atomic::AtomicI32;
 use std::thread;
 use std::time::Duration;
 
 use ::app::{Context, Message, Messenger, B_QUIT_REQUESTED, QUIT};
+use app::sys::B_PREFERRED_TOKEN;
 use ::kernel::ports::Port;
 use ::kernel::INFINITE_TIMEOUT;
 use ::support::{ErrorKind, Flattenable, HaikuError, Result};
 
+/// A trait for the ability to process messages in the context of a looper
+///
+/// Objects that implement this trait, can be added to the messaging queues
+/// of loopers.
 pub trait Handler<A> where A: Send + 'static {
+	/// Handle a message
+	///
+	/// When a Looper receives a message, this method is called for you to
+	/// handle it.
+	/// TODO: Example
 	fn message_received(&mut self, context: &Context<A>, message: &Message);
 }
 
@@ -23,31 +34,97 @@ pub(crate) enum HandlerType<A> where A: Send + 'static {
 	LooperState
 }
 
+/// A system that receives and processes messages in a separate thread
+///
+/// Loopers are a core Haiku concept. Haiku embraces the multithreaded
+/// application model, where the functionality of the application is split
+/// up over different threads with a specific job. The best example of the use
+/// of a looper is in that every Window is its own Looper.
+///
+/// Haiku's design consists of an Application with one or more Loopers. Each
+/// Looper then functions as an independent message queue, which receives
+/// messages from other parts of the application, or from external applications,
+/// and then dispatches these to Handlers. In this implementation of the API,
+/// any object may be a Handler, as long as it implements the Handler trait.
+/// A Looper has at least one Handler, which is referred to as the InitialState.
+///
+/// To create a new Looper, you call the Application::create_looper() method.
+/// This method takes as an argument a Box<YourState>, which is a required
+/// instance of a type that that you define and use. The only requirement is
+/// that this State implements the Handler trait, so that it may receive and
+/// process messages. The State becomes the preferred Handler by default.
+///
+/// After creating a Looper, you can add additional Handlers to it, with
+/// the `add_handler()` method. After you add the Handler, the Looper takes
+/// ownership, this means that you can no longer manipulate the object
+/// yourself. It is possible to mark a Handler as the preferred Handler by
+/// using the add_preferred_handler() method. This will override any previously
+/// selected preferred Handler.
+///
+/// Once the Looper and its Handlers are set up, you can start the message
+/// queue by using the run() method. Calling this method will transfer
+/// ownership of the Looper object to the new Looper thread. Any interaction
+/// you may want with that thread, should be done through the messaging
+/// system.
+///
+/// A Looper will continue to run until the it gets a request to quit. This
+/// can be done by sending the B_QUIT_REQUESTED message. Additionally, a
+/// Looper will quit when the Application is quitting.
 pub struct Looper<A> where A: Send + 'static {
 	pub(crate) name: String,
 	pub(crate) port: Port,
 	pub(crate) message_queue: VecDeque<Message>,
 	pub(crate) handlers: HashMap<i32, HandlerType<A>>,
+	pub(crate) preferred_handler: i32,
 	pub(crate) context: Context<A>,
 	pub(crate) state: Box<dyn Handler<A> + Send>,
 	pub(crate) terminating: bool
 }
 
 impl<A> Looper<A> where A: Send + 'static {	
+	/// Get the name for this Looper
 	pub fn name(&self) -> &str {
 		&self.name
 	}
-	
+
+	/// Get a Messenger for this looper
+	///
+	/// This Messenger by default points to the preferred Handler.
 	pub fn get_messenger(&self) -> Messenger {
 		Messenger::from_port(&self.port).unwrap()
 	}
-	
+
+	/// Start the message loop
+	///
+	/// When you use this method, the Looper ownership of the Looper object
+	/// will be transferred to the Looper's thread. The message processing
+	/// will start, until the Looper is requested to quit.
 	pub fn run(mut self) -> Result<()> {
 		let child = thread::spawn(move || {
 			println!("[{}] Running looper", self.name());
 			self.looper_task();
 		});
 		Ok(())
+	}
+
+	/// Add a Handler to the message queue
+	///
+	/// The handler may be any object that implements the Handler trait. The
+	/// object should be created on the heap (as a Box).
+	pub fn add_handler(&mut self, handler: Box<dyn Handler<A> + Send>) {
+		self.handlers.insert(NEXT_HANDLER_TOKEN.fetch_add(1, atomic::Ordering::Relaxed), HandlerType::OwnedHandler(handler));
+	}
+
+	/// Add a preferred Handler to the message queue
+	///
+	/// Like the add_handler() method, this method takes ownership of any
+	/// Handler. In addition, this method will also set the Handler as the
+	/// preferred Handler of this Looper. This will overwrite the previously
+	/// set preferred Handler.
+	pub fn add_preferred_handler(&mut self, handler: Box<dyn Handler<A> + Send>) {
+		let token = NEXT_HANDLER_TOKEN.fetch_add(1, atomic::Ordering::Relaxed);
+		self.handlers.insert(token, HandlerType::OwnedHandler(handler));
+		self.preferred_handler = token;
 	}
 
 	pub(crate) fn looper_task(&mut self) {
@@ -93,18 +170,29 @@ impl<A> Looper<A> where A: Send + 'static {
 					dispatch_next_message = false;
 				} else {
 					let message = message.unwrap();
+					let mut handler_token = message.header.target;
 					println!("[{}] Handling message {:?}", self.name(), message);
-					
+					if handler_token == B_PREFERRED_TOKEN {
+						handler_token = self.preferred_handler;
+					}
+
+					let handler = match self.handlers.get_mut(&handler_token) {
+						Some(handler) => handler,
+						None => continue, //If we are not the addressee, continue next
+					};
+
 					match message.what() {
 						B_QUIT_REQUESTED => {},
 						QUIT => { self.terminating = true; },
 						_ => {
-							// Todo: support handler tokens and targeting
-					
-		//					for handler in self.handlers.iter_mut() {
-		//						handler.message_received(&self.context, &message);
-		//					}
-							self.state.message_received(&self.context, &message);
+							match handler {
+								HandlerType::OwnedHandler(h) => {
+									h.message_received(&self.context, &message);
+								},
+								HandlerType::LooperState => {
+									self.state.message_received(&self.context, &message);
+								}
+							}	
 						}
 					}
 				}
@@ -112,7 +200,7 @@ impl<A> Looper<A> where A: Send + 'static {
 				if self.terminating {
 					break;
 				}
-				
+
 				match self.port.get_count() {
 					Ok(count) => {
 						if count > 0 {

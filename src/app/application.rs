@@ -13,7 +13,7 @@ use ::app::{B_READY_TO_RUN, B_QUIT_REQUESTED, Handler, Message, Messenger};
 use ::app::looper::{HandlerType, Looper, NEXT_HANDLER_TOKEN};
 use ::app::roster::{ROSTER, ApplicationRegistrationStatus};
 use ::app::serverlink::{ServerLink, server_protocol};
-use ::app::sys::get_app_path;
+use ::app::sys::{B_PREFERRED_TOKEN, get_app_path};
 use ::kernel::INFINITE_TIMEOUT;
 use ::kernel::ports::Port;
 use ::storage::MimeType;
@@ -84,13 +84,16 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 			port: port,
 			message_queue: VecDeque::new(),
 			handlers: handlers,
+			preferred_handler: handler_token,
 			context: context,
 			state: default_looper_state,
 			terminating: false
 		};
 		
 		// Add the READY_TO_RUN message to the queue
-		inner_looper.message_queue.push_back(Message::new(B_READY_TO_RUN));
+		let mut ready_message = Message::new(B_READY_TO_RUN);
+		ready_message.header.target = B_PREFERRED_TOKEN;
+		inner_looper.message_queue.push_back(ready_message);
 
 		// Connect to the app_server
 		let mut link = ServerLink::create_desktop_connection().unwrap();
@@ -133,12 +136,14 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 			application_state: self.state.clone()
 		};
 		let mut handlers = HashMap::new();
-		handlers.insert(NEXT_HANDLER_TOKEN.fetch_add(1, atomic::Ordering::Relaxed), HandlerType::LooperState);
+		let token = NEXT_HANDLER_TOKEN.fetch_add(1, atomic::Ordering::Relaxed);
+		handlers.insert(token, HandlerType::LooperState);
 		Looper {
 			name: String::from(name),
 			port: port,
 			message_queue: VecDeque::new(),
 			handlers: handlers,
+			preferred_handler: token,
 			context: context,
 			state: initial_state,
 			terminating: false
