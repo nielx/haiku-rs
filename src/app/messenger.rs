@@ -176,6 +176,10 @@ impl Messenger {
 		self.port.write(B_MESSAGE_TYPE as i32, &flattened_message).ok();
 		Ok(())
 	}
+
+	pub(crate) fn set_token(&mut self, token: i32) {
+		self.token = token;
+	}
 }
 
 #[test]

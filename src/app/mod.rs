@@ -16,7 +16,7 @@ mod roster;
 pub(crate) mod serverlink;
 pub(crate) mod sys;
 
-pub use self::application::{Application, ApplicationHooks, Context};
+pub use self::application::{Application, ApplicationDelegate, ApplicationHooks, Context};
 pub use self::looper::{Handler, Looper};
 pub use self::message::Message;
 pub use self::messenger::Messenger;

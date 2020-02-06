@@ -115,22 +115,22 @@ impl Notification {
 
 #[cfg(test)]
 mod tests {
-	use app::{Application, ApplicationHooks, Message, Messenger, QUIT};
+	use app::{Application, ApplicationDelegate, ApplicationHooks, Message, Messenger, QUIT};
 	use super::*;
 
 	struct MockApplicationState { }
 	impl ApplicationHooks for MockApplicationState {
-		fn message_received(&mut self, app_messenger: &Messenger, message: &Message) {
+		fn message_received(&mut self, application: &ApplicationDelegate, message: &Message) {
 		}
 		
-		fn ready_to_run(&mut self, app_messenger: &Messenger) {
+		fn ready_to_run(&mut self, application: &ApplicationDelegate) {
 			let notification = Notification {
 				title: Some(String::from("Information")), 
 				content: Some(String::from("This notification comes from Rust")),
 				.. Default::default()
 			};
-			notification.send(app_messenger, None);
-			app_messenger.send(Message::new(QUIT), &app_messenger);
+			notification.send(&application.messenger, None);
+			application.quit();
 		}
 	}
 

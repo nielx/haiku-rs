@@ -185,6 +185,7 @@ impl<A> Looper<A> where A: Send + 'static {
 						B_QUIT_REQUESTED => {},
 						QUIT => { self.terminating = true; },
 						_ => {
+							self.context.handler_messenger.set_token(handler_token);
 							match handler {
 								HandlerType::OwnedHandler(h) => {
 									h.message_received(&self.context, &message);
