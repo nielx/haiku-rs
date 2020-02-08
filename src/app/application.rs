@@ -4,12 +4,13 @@
 //
 
 use std::collections::{HashMap, VecDeque};
+use std::env::args;
 use std::mem;
 use std::sync::{Arc, Mutex, atomic};
 
 use haiku_sys::{thread_info, thread_id, find_thread, get_thread_info, port_id, team_id};
 
-use ::app::{B_READY_TO_RUN, B_QUIT_REQUESTED, QUIT, Handler, Message, Messenger};
+use ::app::{B_ARGV_RECEIVED, B_READY_TO_RUN, B_QUIT_REQUESTED, QUIT, Handler, Message, Messenger};
 use ::app::looper::{HandlerType, Looper, NEXT_HANDLER_TOKEN};
 use ::app::roster::{ROSTER, ApplicationRegistrationStatus};
 use ::app::serverlink::{ServerLink, server_protocol};
@@ -36,7 +37,7 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 			Some(t) => t,
 			None => panic!("Invalid MimeType")
 		};
-		
+
 		if mime_type.is_supertype_only() || (mime_type.get_supertype() != MimeType::new("application").unwrap()) {
 			panic!("Invalid MimeType");
 		}
@@ -90,7 +91,13 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 			state: default_looper_state,
 			terminating: false
 		};
-		
+
+		// Add the ARGV_RECEIVED message to the queue
+		let mut argv_message = Message::new(B_ARGV_RECEIVED);
+		argv_message.header.target = B_PREFERRED_TOKEN;
+		argv_message.add_data("_internal", &true);
+		inner_looper.message_queue.push_back(argv_message);
+
 		// Add the READY_TO_RUN message to the queue
 		let mut ready_message = Message::new(B_READY_TO_RUN);
 		ready_message.header.target = B_PREFERRED_TOKEN;
@@ -265,7 +272,11 @@ pub trait ApplicationHooks {
 	fn ready_to_run(&mut self, application: &ApplicationDelegate) {
 	}
 	
-	fn message_received(&mut self, application: &ApplicationDelegate, message: &Message);
+	fn message_received(&mut self, application: &ApplicationDelegate, message: &Message) {
+	}
+
+	fn argv_received(&mut self, application: &ApplicationDelegate, argv: Vec<String>) {
+	}
 }
 
 struct ApplicationLooperState {}
@@ -277,11 +288,39 @@ impl<A> Handler<A> for ApplicationLooperState
 		let mut application_state = context.application_state.lock().unwrap();
 		// Dispatch specific messages to particular application hooks
 		match message.what() {
+			B_ARGV_RECEIVED => {
+				let argv = parse_argv(message);
+				if argv.len() > 0 {
+					application_state.argv_received(&context.application, argv);
+				}
+			},
 			B_READY_TO_RUN => application_state.ready_to_run(&context.application),
 			_ => application_state.message_received(&context.application, message)
 		}
 	}
 }
+
+// Convert a B_ARGV_RECEIVED message into a Vector with strings
+fn parse_argv(message: &Message) -> Vec<String> {
+	let internal = message.find_data::<bool>("_internal", 0).unwrap_or(false);
+	let mut argv: Vec<String> = Vec::new();
+	if internal {
+		// parse argv
+		for arg in args() {
+			argv.push(arg);
+		}
+	} else {
+		for i in 0.. {
+			let arg = match message.find_data::<String>("argv", i) {
+				Ok(arg) => arg,
+				Err(_) => break
+			};
+			argv.push(arg);
+		}
+	}
+	argv
+}
+		
 
 /// Get the current team id and thread id
 // TODO: some caching
