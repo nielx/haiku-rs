@@ -16,8 +16,13 @@ use libc::c_char;
 
 use ::support::{ErrorKind, HaikuError, Result};
 
-// private/app/MessagePrivate.h
+// os/app/AppDefs.h
+pub const B_ARGV_RECEIVED: u32 = haiku_constant!('_','A','R','G');
+pub const B_READY_TO_RUN: u32 = haiku_constant!('_','R','T','R');
+pub const B_QUIT_REQUESTED: u32 = haiku_constant!('_','Q','R','Q');
+pub const QUIT: u32 = haiku_constant!('_','Q','I','T');
 
+// private/app/MessagePrivate.h
 pub const MESSAGE_FLAG_VALID: u32 = 0x0001;
 pub const MESSAGE_FLAG_REPLY_REQUIRED: u32 = 0x0002;
 pub const MESSAGE_FLAG_REPLY_DONE: u32 = 0x0004;

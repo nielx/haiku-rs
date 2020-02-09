@@ -115,7 +115,7 @@ impl Notification {
 
 #[cfg(test)]
 mod tests {
-	use app::{Application, ApplicationDelegate, ApplicationHooks, Message, Messenger, QUIT};
+	use app::{Application, ApplicationDelegate, ApplicationHooks, Message, Messenger};
 	use super::*;
 
 	struct MockApplicationState { }

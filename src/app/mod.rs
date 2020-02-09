@@ -22,8 +22,3 @@ pub use self::message::Message;
 pub use self::messenger::Messenger;
 pub use self::notification::{Notification, NotificationType};
 pub use self::roster::{ROSTER, AppInfo, Roster};
-
-pub const B_ARGV_RECEIVED: u32 = haiku_constant!('_','A','R','G');
-pub const B_READY_TO_RUN: u32 = haiku_constant!('_','R','T','R');
-pub const B_QUIT_REQUESTED: u32 = haiku_constant!('_','Q','R','Q');
-pub const QUIT: u32 = haiku_constant!('_','Q','I','T');

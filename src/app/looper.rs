@@ -10,8 +10,8 @@ use std::sync::atomic::AtomicI32;
 use std::thread;
 use std::time::Duration;
 
-use ::app::{Context, Message, Messenger, B_QUIT_REQUESTED, QUIT};
-use app::sys::B_PREFERRED_TOKEN;
+use ::app::{Context, Message, Messenger};
+use app::sys::{B_PREFERRED_TOKEN, B_QUIT_REQUESTED, QUIT};
 use ::kernel::ports::Port;
 use ::kernel::INFINITE_TIMEOUT;
 use ::support::{ErrorKind, Flattenable, HaikuError, Result};

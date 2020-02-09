@@ -10,11 +10,11 @@ use std::sync::{Arc, Mutex, atomic};
 
 use haiku_sys::{thread_info, thread_id, find_thread, get_thread_info, port_id, team_id};
 
-use ::app::{B_ARGV_RECEIVED, B_READY_TO_RUN, B_QUIT_REQUESTED, QUIT, Handler, Message, Messenger};
+use ::app::{Handler, Message, Messenger};
 use ::app::looper::{HandlerType, Looper, LooperDelegate, NEXT_HANDLER_TOKEN};
 use ::app::roster::{ROSTER, ApplicationRegistrationStatus};
 use ::app::serverlink::{ServerLink, server_protocol};
-use ::app::sys::{B_PREFERRED_TOKEN, get_app_path};
+use ::app::sys::{B_ARGV_RECEIVED, B_READY_TO_RUN, B_QUIT_REQUESTED, QUIT, B_PREFERRED_TOKEN, get_app_path};
 use ::kernel::INFINITE_TIMEOUT;
 use ::kernel::ports::Port;
 use ::storage::MimeType;
@@ -323,7 +323,8 @@ pub(crate) fn get_current_team_and_thread() -> (team_id, thread_id) {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use app::{Message, QUIT};
+	use app::{Message};
+	use app::sys::QUIT;
 	
 	const ADD_TO_COUNTER: u32 = haiku_constant!('C','O','+','+');
 	const INFORM_APP_ABOUT_COUNTER: u32 = haiku_constant!('I','A','A','C');
@@ -363,6 +364,9 @@ mod tests {
 					if count == 2 {
 						// Quit the looper when the count hits 2
 						let messenger = message.get_return_address().unwrap();
+						// TODO:  We should not be using QUIT here, this is an internal detail
+						//        In general, it should be resolved how we do inter-looper
+						//        management
 						messenger.send_and_ask_reply(Message::new(QUIT), &messenger);
 					}
 					println!("total count: {}", self.total_count);
