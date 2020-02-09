@@ -128,6 +128,6 @@ fn print_usage(program: &str, opts: &Options) {
 
 fn main() {
 	let state = NotifyApp{ options: build_options(), notification: None };
-	let mut app = Application::new(SIGNATURE, state);
+	let app = Application::new(SIGNATURE, state);
 	app.run().unwrap();
 }

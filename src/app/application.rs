@@ -23,6 +23,17 @@ use ::support::Result;
 
 const LOOPER_PORT_DEFAULT_CAPACITY: i32 = 200;
 
+/// Main entrypoint into a Haiku Application
+///
+/// Each Haiku application will create one Application instance. The function
+/// of this object is to connect to all the various servers that provide
+/// functionality and integration on Haiku. As a programmer, you use the object
+/// to set up your internal application. 
+///
+/// In general, you create a new application using the `new()` function. You
+/// then set up additional loopers using the `create_looper()` function, and
+/// when you are ready, you call the `run()` function to start the message
+/// loop. Control is returned to you when the message loop is quit. 
 pub struct Application<A> where A: ApplicationHooks + Send + 'static {
 	state: Arc<Mutex<A>>,
 	inner_looper: Looper<A>,
@@ -31,6 +42,18 @@ pub struct Application<A> where A: ApplicationHooks + Send + 'static {
 }
 
 impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
+	/// Create a new application object
+	///
+	/// This constructor will create a new application object. The required
+	/// parameters are a signature, and the initial state. The signature should
+	/// be a mime type with the supertype application, and a unique application
+	/// identifier.
+	///
+	/// The initial_state has two roles. First of all, as it implements the
+	/// `ApplicationHooks`, it will act as a `Handler` for messages that are
+	/// sent to the application. Secondly, the state is shared among all the
+	/// loopers (and handlers) through the `Context<A>` instances that are
+	/// passed as arguments to the message processors.
 	pub fn new(signature: &str, initial_state: A) -> Self {
 		// Check the signature
 		let mime_type =  match MimeType::new(signature) {
@@ -135,6 +158,16 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 		}
 	}
 
+	/// Create a new looper for this application
+	///
+	/// This method creates a new looper. Each looper has a name, and a state.
+	/// The state of the looper should implement the `Handler<A>` trait, which
+	/// makes sure that the state can process messages. The initial_state will
+	/// be set as the preferred handler once it is provided.
+	///
+	/// The created loopers will not automatically start running; instead they
+	/// will be in a suspended state. See the Looper documentation on how to
+	/// start running them.
 	pub fn create_looper(&mut self, name: &str, initial_state: Box<dyn Handler<A> + Send>) -> Looper<A>
 	{
 		let port = Port::create(name, LOOPER_PORT_DEFAULT_CAPACITY).unwrap();
@@ -159,12 +192,23 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 		}
 	}
 
-	pub fn run(&mut self) -> Result<()> {
+	/// Run the application
+	///
+	/// Calling this method will start the application's main message loop. The
+	/// method returns once all the messages are processed.
+	///
+	/// This method consumes the application instance, meaning that you won't be
+	/// able to use it after the loop has finished.
+	pub fn run(mut self) -> Result<()> {
 		println!("Running application looper!");
 		self.inner_looper.looper_task();
 		Ok(())
 	}
 
+	/// Get a messenger to the application
+	///
+	/// The messenger will point to the preferred handler, which usually is the
+	/// state you provide.
 	pub fn get_messenger(&self) -> Messenger {
 		self.inner_looper.get_messenger()
 	}
@@ -184,6 +228,7 @@ impl<A> Drop for Application<A> where A: ApplicationHooks + Send + 'static {
 
 /// Interact with the application object
 pub struct ApplicationDelegate {
+	/// A messenger that targets the preferred handler of the application.
 	pub messenger: Messenger
 }
 
