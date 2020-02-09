@@ -33,7 +33,7 @@ const HEADER_SIZE: usize = 12;
 pub(crate) mod server_protocol {
 	// ServerProtocol.h
 	pub(crate) const AS_PROTOCOL_VERSION: i32 = 1;
-	
+
 	// from the main enum there
 	pub(crate) const AS_GET_DESKTOP: i32 = 0;
 	pub(crate) const AS_REGISTER_INPUT_SERVER: i32 = 1;
@@ -47,19 +47,13 @@ pub(crate) mod server_protocol {
 	pub(crate) const AS_WINDOW_ACTION: i32 = 7;
 	pub(crate) const AS_GET_APPLICATION_ORDER: i32 = 8;
 	pub(crate) const AS_GET_WINDOW_ORDER: i32 = 9;
-	
+
 	// application definitions
 	pub(crate) const AS_CREATE_APP: i32 = 10;
 	pub(crate) const AS_DELETE_APP: i32 = 11;
 	pub(crate) const AS_QUIT_APP: i32 = 12;
 	pub(crate) const AS_ACTIVATE_APP: i32 = 13;
 	pub(crate) const AS_APP_CRASHED: i32 = 14;
-}
-
-pub(crate) struct LinkSender {
-	port: Port,
-	cursor: Cursor<Vec<u8>>,
-	current_message_start: u64
 }
 
 /// Class that sends the special server protocol to a port.
@@ -75,6 +69,14 @@ pub(crate) struct LinkSender {
 /// There are two intermediate memory buffers: on is through a heap-allocated
 /// data store with the MAX_BUFFER_SIZE (currently at 64kb). The other uses
 /// the area system (not yet implemented).
+pub(crate) struct LinkSender {
+	port: Port,
+	cursor: Cursor<Vec<u8>>,
+	current_message_start: u64
+}
+
+// TODO: Re-enable dead_code warnings when class is further tested
+#[allow(dead_code)]
 impl LinkSender {
 	pub(crate) fn start_message(&mut self, code: i32, mut size_hint: usize) -> Result<()> {		
 		self.end_message(false)?;
@@ -97,11 +99,11 @@ impl LinkSender {
 
 		Ok(())
 	}
-	
+
 	pub(crate) fn cancel_message(&mut self) {
 		self.cursor.set_position(self.current_message_start);
 	}
-	
+
 	pub(crate) fn end_message(&mut self, needs_reply: bool) -> Result<()> {
 		if self.current_message_start == self.cursor.position() {
 			return Ok(());
@@ -219,13 +221,15 @@ impl Iterator for LinkReceiver {
 	}
 }
 
+// TODO: re-enable dead code warnings when class is further developed
+#[allow(dead_code)]
 impl LinkReceiver {
 	pub(crate) fn get_next_message(&mut self, timeout: Duration) -> Option<(u32, usize, bool)> {
 		// check if the current buffer is empty or if we are at the end
 		let fetch: bool = match self.position {
 			Position::Empty => true,
-			Position::Start(pos) => false,
-			Position::Inside(pos, end) => {
+			Position::Start(_) => false,
+			Position::Inside(_, end) => {
 				if end == self.buffer.len() {
 					true
 				} else {
@@ -325,7 +329,7 @@ impl LinkReceiver {
 
 		if buffer_size > self.buffer.capacity() {
 			let additional = buffer_size - self.buffer.len();
-			self.buffer.reserve(buffer_size as usize);
+			self.buffer.reserve(additional as usize);
 		}
 
 		// read data from port
@@ -359,7 +363,7 @@ impl LinkReceiver {
 		}
 	}
 
-	fn read_message_header(&mut self, mut pos: usize) -> Option<(u32, usize, bool)> {
+	fn read_message_header(&mut self, pos: usize) -> Option<(u32, usize, bool)> {
 		// Check if the buffer is large enough to have a header
 		if self.buffer.len() - pos < HEADER_SIZE {
 			self.invalidate_buffer();
@@ -518,7 +522,7 @@ fn test_link_sender_receiver_behaviour() {
 
 	// Receiver check (scenario 2 + 3)
 	let mut count: u32 = 100;
-	for (code, size, reply) in receiver {
+	for (code, _size, reply) in receiver {
 		assert_eq!(count, code);
 		assert_eq!(reply, false);
 		count += 1;
@@ -530,5 +534,3 @@ fn test_link_sender_receiver_behaviour() {
 	}
 	assert_eq!(count, 103);
 }
-
-	
