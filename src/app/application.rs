@@ -37,7 +37,6 @@ const LOOPER_PORT_DEFAULT_CAPACITY: i32 = 200;
 pub struct Application<A> where A: ApplicationHooks + Send + 'static {
 	state: Arc<Mutex<A>>,
 	inner_looper: Looper<A>,
-	signature: MimeType,
 	link: ServerLink
 }
 
@@ -153,7 +152,6 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 		Self {
 			state: state,
 			inner_looper: inner_looper,
-			signature: mime_type,
 			link: link
 		}
 	}
@@ -242,7 +240,7 @@ impl ApplicationDelegate {
 	/// Note that this request does not clean up any of the existing Loopers.
 	pub fn quit(&self) {
 		let message = Message::new(QUIT);
-		self.messenger.send(message, &self.messenger);
+		self.messenger.send(message, &self.messenger).unwrap();
 	}
 }
 

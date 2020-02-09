@@ -72,7 +72,7 @@ impl Flattenable<entry_ref> for entry_ref {
 		vec
 	}
 
-	fn unflatten(buffer: &[u8]) -> Result<entry_ref> {
+	fn unflatten(_buffer: &[u8]) -> Result<entry_ref> {
 		unimplemented!()
 	}
 }

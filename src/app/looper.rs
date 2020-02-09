@@ -100,7 +100,7 @@ impl<A> Looper<A> where A: Send + 'static {
 	/// will be transferred to the Looper's thread. The message processing
 	/// will start, until the Looper is requested to quit.
 	pub fn run(mut self) -> Result<()> {
-		let child = thread::spawn(move || {
+		let _child = thread::spawn(move || {
 			println!("[{}] Running looper", self.name());
 			self.looper_task();
 		});
@@ -249,7 +249,7 @@ impl LooperDelegate {
 	/// with it.
 	pub fn quit(&self) {
 		let message = Message::new(QUIT);
-		self.messenger.send(message, &self.messenger);
+		self.messenger.send(message, &self.messenger).unwrap();
 	}
 }
 

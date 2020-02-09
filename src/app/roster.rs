@@ -307,7 +307,7 @@ impl Flattenable<FlatAppInfo> for FlatAppInfo {
 
 
 // Supporting constants for AppInfo
-const B_SINGLE_LAUNCH: u32 = 0x0;
+//const B_SINGLE_LAUNCH: u32 = 0x0;
 const B_MULTIPLE_LAUNCH: u32 = 0x1;
 const B_EXCLUSIVE_LAUNCH: u32 = 0x2;
 // B_LAUNCH_MASK 0x3
