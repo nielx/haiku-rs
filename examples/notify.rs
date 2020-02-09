@@ -7,7 +7,7 @@ extern crate getopts;
 extern crate haiku;
 
 use getopts::Options;
-use haiku::app::{Application, ApplicationDelegate, ApplicationHooks, Messenger, Message, Notification, NotificationType};
+use haiku::app::{Application, ApplicationDelegate, ApplicationHooks, Notification, NotificationType};
 
 const SIGNATURE: &str = "application/x-vnd.HaikuRS-notify";
 
@@ -25,7 +25,7 @@ impl ApplicationHooks for NotifyApp {
 		application.quit();
 	}
 
-	fn argv_received(&mut self, application: &ApplicationDelegate, argv: Vec<String>) {
+	fn argv_received(&mut self, _application: &ApplicationDelegate, argv: Vec<String>) {
 		// we need at least one argument
 		if argv.len() <= 1 {
 			return;
@@ -69,10 +69,42 @@ impl ApplicationHooks for NotifyApp {
 		}
 
 		// add a title
-		if matches.opt_present("title") {
-			notification.title = matches.opt_str("title");
+		if matches.opt_present("T") {
+			notification.title = matches.opt_str("T");
 		}
 
+		// add a group
+		if matches.opt_present("g") {
+			notification.group = matches.opt_str("g");
+		}
+
+		// add an id
+		if matches.opt_present("i") {
+			notification.id = matches.opt_str("i");
+		}
+
+		// check for progress
+		if matches.opt_present("p") {
+			if notification.notification_type != NotificationType::Progress {
+				println!("You can only set the progress parameter when the notification type is of `progress`");
+				return;
+			}
+			let progress_string = matches.opt_str("p").unwrap();
+			let progress = match progress_string.parse::<f32>() {
+				Ok(p) => p,
+				Err(_) => {
+					println!("Invalid value for the progress parameter");
+					return;
+				}
+			};
+
+			if progress < 0.0 || progress > 1.0 {
+				println!("Enter a value between 0.0 and 1.0 for the progress parameter");
+				return;
+			}
+			notification.progress = progress;
+		}
+ 
 		// Store the notification for display on ready_to_run
 		self.notification = Some(notification);
 	}
@@ -81,7 +113,10 @@ impl ApplicationHooks for NotifyApp {
 fn build_options() -> Options {
 	let mut options = Options::new();
 	options.optopt("t", "type", "the type of option (information, important, error, progress)", "TYPE");
-	options.optopt("", "title", "title for your notification", "TITLE");
+	options.optopt("T", "title", "title for your notification", "TITLE");
+	options.optopt("g", "group", "the group name for this notification", "GROUP");
+	options.optopt("i", "id", "the id that uniquely identifies this notification", "ID");
+	options.optopt("p", "progress", "the value between 0.0 and 1.0 that expresses the progress, defaults to 0.0", "PROGRESS");
 	options.optflag("h", "help", "print this help menu");
 	options
 }
@@ -94,5 +129,5 @@ fn print_usage(program: &str, opts: &Options) {
 fn main() {
 	let state = NotifyApp{ options: build_options(), notification: None };
 	let mut app = Application::new(SIGNATURE, state);
-	app.run();
+	app.run().unwrap();
 }
