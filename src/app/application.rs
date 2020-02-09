@@ -246,18 +246,55 @@ pub struct Context<A> where A: Send {
 	///   1. Do not use synchronous messaging, unless you know what you are
 	///      doing.
 	///   2. If you do need access to the application state, use the lock()
-	///      method of the Mutex (instead of get_mut()), and drop the Guard
-	///      as soon as you are done.
+	///      method of the Mutex, and drop the Guard as soon as you are done.
 	pub application_state: Arc<Mutex<A>>,
 }
 
+/// Callbacks to be implemented by the ApplicationState
+///
+/// In order to create an Application object, you will need to provide an
+/// application state. Each application state will need to implement this
+/// trait. Currently there are three hook methods, all of which have a
+/// default implementation (which does nothing).
+///
+/// The application state acts like a `Handler<A>`, and can be targeted by
+/// messages. There is a variety of the `Handler<A>::message_received()`
+/// method available as a hook.
 pub trait ApplicationHooks {
+	/// Called when the messaging loop is started
+	///
+	/// This hook is called when the message loop starts running. It is
+	/// guaranteed to be the second hook called, after the `argv_received()`
+	/// hook.
 	fn ready_to_run(&mut self, _application: &ApplicationDelegate) {
 	}
-	
+
+	/// Called when a message is received
+	///
+	/// This hook method is similar to the `Handler<A>::message_received()`
+	/// function. It is called when the application message loop receives a
+	/// message that either directly targets the state as a handler, or when
+	/// the state is the preferred handler of the application (which it is
+	/// by default).
+	///
+	/// Unlike the `Handler<A>` callback, this hook function does not receive
+	/// a `Context<A>`. Instead, you only get the `ApplicationDelegate`. The
+	/// reason is that you don't need the `LooperDelegate`, as the application
+	/// is running the relevant message loop. Additionally, you don't need
+	/// access to the mutex-protected application state, since this is already
+	/// available as the `self` argument.
 	fn message_received(&mut self, _application: &ApplicationDelegate, _message: &Message) {
 	}
 
+	/// Called when your application receives arguments
+	///
+	/// This hook is guaranteed to be called as the first hook when the message
+	/// loop starts. It contains the command line arguments, including the
+	/// application name.
+	///
+	/// Additionally, this hook may be called when you set your application as
+	/// Single Launch, and the user tried to launch another instance. In that
+	/// case the arguments will be sent to this instance.
 	fn argv_received(&mut self, _application: &ApplicationDelegate, _argv: Vec<String>) {
 	}
 }
