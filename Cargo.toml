@@ -18,3 +18,4 @@ libc = "0.2.48"
 
 [dev-dependencies]
 tempfile = "3.0.6"
+getopts = "0.2"

@@ -24,7 +24,7 @@ pub enum NotificationType {
 
 
 pub struct Notification {
-	notification_type: NotificationType,
+	pub notification_type: NotificationType,
 	pub group: Option<String>,
 	pub title: Option<String>,
 	pub content: Option<String>,
