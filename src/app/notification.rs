@@ -221,7 +221,7 @@ mod tests {
 
 	#[test]
 	fn test_notification() {
-		let mut application = Application::new(MOCK_SIGNATURE, MockApplicationState {});
+		let application = Application::new(MOCK_SIGNATURE, MockApplicationState {});
 		application.run().unwrap();
 	}
 }

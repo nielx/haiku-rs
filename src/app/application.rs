@@ -420,7 +420,7 @@ mod tests {
 					self.count += 1;
 					let mut response = Message::new(INFORM_APP_ABOUT_COUNTER);
 					response.add_data("count", &self.count);
-					context.application.messenger.send_and_ask_reply(response, &context.looper.messenger);
+					context.application.messenger.send_and_ask_reply(response, &context.looper.messenger).unwrap();
 				},
 				_ => panic!("We are not supposed to receive messages other than ADD_TO_COUNTER"),
 			}
@@ -432,7 +432,7 @@ mod tests {
 	}
 	
 	impl ApplicationHooks for ApplicationState {
-		fn ready_to_run(&mut self, application: &ApplicationDelegate) {
+		fn ready_to_run(&mut self, _application: &ApplicationDelegate) {
 			println!("ready_to_run()");
 		}
 		
@@ -447,7 +447,7 @@ mod tests {
 						// TODO:  We should not be using QUIT here, this is an internal detail
 						//        In general, it should be resolved how we do inter-looper
 						//        management
-						messenger.send_and_ask_reply(Message::new(QUIT), &messenger);
+						messenger.send_and_ask_reply(Message::new(QUIT), &messenger).unwrap();
 					}
 					println!("total count: {}", self.total_count);
 				},
@@ -478,15 +478,15 @@ mod tests {
 		
 		// Create four count messages, two for each counter
 		let app_messenger = application.get_messenger();
-		let mut message = Message::new(ADD_TO_COUNTER);
-		messenger_1.send_and_ask_reply(message, &app_messenger);
-		let mut message = Message::new(ADD_TO_COUNTER);
-		messenger_2.send_and_ask_reply(message, &app_messenger);
-		let mut message = Message::new(ADD_TO_COUNTER);
-		messenger_1.send_and_ask_reply(message, &app_messenger);
-		let mut message = Message::new(ADD_TO_COUNTER);
-		messenger_2.send_and_ask_reply(message, &app_messenger);
+		let message = Message::new(ADD_TO_COUNTER);
+		messenger_1.send_and_ask_reply(message, &app_messenger).unwrap();
+		let message = Message::new(ADD_TO_COUNTER);
+		messenger_2.send_and_ask_reply(message, &app_messenger).unwrap();
+		let message = Message::new(ADD_TO_COUNTER);
+		messenger_1.send_and_ask_reply(message, &app_messenger).unwrap();
+		let message = Message::new(ADD_TO_COUNTER);
+		messenger_2.send_and_ask_reply(message, &app_messenger).unwrap();
 
-		application.run(); 
+		application.run().unwrap(); 
 	}
 }
