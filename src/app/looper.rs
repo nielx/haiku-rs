@@ -101,7 +101,6 @@ impl<A> Looper<A> where A: Send + 'static {
 	/// will start, until the Looper is requested to quit.
 	pub fn run(mut self) -> Result<()> {
 		let _child = thread::spawn(move || {
-			println!("[{}] Running looper", self.name());
 			self.looper_task();
 		});
 		Ok(())
@@ -129,8 +128,6 @@ impl<A> Looper<A> where A: Send + 'static {
 
 	pub(crate) fn looper_task(&mut self) {
 		loop {
-			println!("[{}] outer loop", self.name());
-
 			// Try to read the first message from the port
 			// This will block until there is a message
 			// Note that we check for anything in the queue because the
@@ -171,7 +168,6 @@ impl<A> Looper<A> where A: Send + 'static {
 				} else {
 					let message = message.unwrap();
 					let mut handler_token = message.header.target;
-					println!("[{}] Handling message {:?}", self.name(), message);
 					if handler_token == B_PREFERRED_TOKEN {
 						handler_token = self.preferred_handler;
 					}
@@ -212,10 +208,8 @@ impl<A> Looper<A> where A: Send + 'static {
 				}
 			}
 			if self.terminating {
-				println!("[{}] terminating looper", self.name());
 				break;
 			}
-			println!("[{}] at the end of the outer loop", self.name());
 		}
 	}
 

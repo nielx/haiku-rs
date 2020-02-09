@@ -67,7 +67,6 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 		// Get an entry_ref for this path
 		let path = get_app_path(0).expect("Cannot get the path for this executable");
 		let entry = entry_ref::from_path(&path).expect("Cannot get the entry_ref for this executable");
-		println!("path: {:?} entry: {:?}\n", path.to_str(), entry.name);
 
 		// To do: see if the application file has any attributes set
 		let app_flags: u32 = 1; //B_MULTIPLE_LAUNCH as B_REG_DEFAULT_APP_FLAGS
@@ -198,7 +197,6 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 	/// This method consumes the application instance, meaning that you won't be
 	/// able to use it after the loop has finished.
 	pub fn run(mut self) -> Result<()> {
-		println!("Running application looper!");
 		self.inner_looper.looper_task();
 		Ok(())
 	}
