@@ -231,6 +231,28 @@ impl<A> Looper<A> where A: Send + 'static {
 	}
 }
 
+/// Interact with the associated looper
+///
+/// The looper controls the message flow. This delegate allows you to access
+/// it's messenger and implements some convenience methods to interact.
+pub struct LooperDelegate {
+	/// The Messenger to the current Looper
+	pub messenger: Messenger
+}
+
+impl LooperDelegate {
+	/// Send a message to the looper to end the message loop
+	///
+	/// This message will inform the Looper that you want to end
+	/// the message loop. In effect this means that the Looper will stop
+	/// processing messages and will free any resources that are associated
+	/// with it.
+	pub fn quit(&self) {
+		let message = Message::new(QUIT);
+		self.messenger.send(message, &self.messenger);
+	}
+}
+
 /// The following global counter creates new unique tokens to identify handlers.
 // The original class also kept an accounting of the associated Handler objects
 // so that they can be addressed directly. This does not fit the memory

@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex, atomic};
 use haiku_sys::{thread_info, thread_id, find_thread, get_thread_info, port_id, team_id};
 
 use ::app::{B_ARGV_RECEIVED, B_READY_TO_RUN, B_QUIT_REQUESTED, QUIT, Handler, Message, Messenger};
-use ::app::looper::{HandlerType, Looper, NEXT_HANDLER_TOKEN};
+use ::app::looper::{HandlerType, Looper, LooperDelegate, NEXT_HANDLER_TOKEN};
 use ::app::roster::{ROSTER, ApplicationRegistrationStatus};
 use ::app::serverlink::{ServerLink, server_protocol};
 use ::app::sys::{B_PREFERRED_TOKEN, get_app_path};
@@ -74,7 +74,7 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 		let default_looper_state = Box::new(ApplicationLooperState{});
 		let context = Context {
 			handler_messenger: Messenger::from_port(&port).unwrap(),
-			looper_messenger: Messenger::from_port(&port).unwrap(),
+			looper: LooperDelegate{ messenger: Messenger::from_port(&port).unwrap() },
 			application: ApplicationDelegate{ messenger: Messenger::from_port(&port).unwrap() },
 			application_state: state.clone()
 		};
@@ -143,7 +143,7 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 		handlers.insert(token, HandlerType::LooperState);
 		let context = Context {
 			handler_messenger: Messenger::from_port(&port).unwrap(),
-			looper_messenger: Messenger::from_port(&port).unwrap(),
+			looper: LooperDelegate{ messenger: Messenger::from_port(&port).unwrap() },
 			application: ApplicationDelegate{ messenger: self.inner_looper.get_messenger() },
 			application_state: self.state.clone()
 		};
@@ -217,12 +217,14 @@ pub struct Context<A> where A: Send {
 	/// This Messenger is most useful as a reply address for any messages you
 	/// are sending out.
 	pub handler_messenger: Messenger,
-	/// The messenger to the current Looper
+	/// Interact with the current Looper
 	///
-	/// This Messenger addresses the current Looper, and its preferred
-	/// Handler, which may also be the Handler that receives the context.
-	pub looper_messenger: Messenger,
-	/// The messenger to the Application
+	/// This is the Looper that is the context for the current message
+	///
+	/// Note that in some cases, this will be the same message queue as the
+	/// application delegate.
+	pub looper: LooperDelegate,
+	/// Interact with the current Application object
 	///
 	/// This gives access to the global application struct
 	pub application: ApplicationDelegate,
@@ -247,18 +249,6 @@ pub struct Context<A> where A: Send {
 	///      method of the Mutex (instead of get_mut()), and drop the Guard
 	///      as soon as you are done.
 	pub application_state: Arc<Mutex<A>>,
-}
-
-impl<A> Context<A> where A: Send {
-	/// Send a message to the current looper to quit
-	///
-	/// This message will inform the Looper that you want to end the message
-	/// loop. This will drop the Looper and any resources (like Handlers and
-	/// its state) associated with it.
-	pub fn quit_looper(&self) {
-		let message = Message::new(QUIT);
-		self.looper_messenger.send(message, &self.handler_messenger);
-	}
 }
 
 pub trait ApplicationHooks {
@@ -349,7 +339,7 @@ mod tests {
 					self.count += 1;
 					let mut response = Message::new(INFORM_APP_ABOUT_COUNTER);
 					response.add_data("count", &self.count);
-					context.application.messenger.send_and_ask_reply(response, &context.looper_messenger);
+					context.application.messenger.send_and_ask_reply(response, &context.looper.messenger);
 				},
 				_ => panic!("We are not supposed to receive messages other than ADD_TO_COUNTER"),
 			}
