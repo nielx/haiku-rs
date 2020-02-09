@@ -63,9 +63,9 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 			ApplicationRegistrationStatus::NotRegistered => (), //Ignored, now register
 		};
 		
-		let registration = match ROSTER.add_application(&String::from(signature), &entry, app_flags,
+		match ROSTER.add_application(&String::from(signature), &entry, app_flags,
 			team, thread, port.get_port_id(), true) {
-				Ok(r) => r,
+				Ok(_) => (),
 				Err(_) => panic!("Error registering with the registrar")
 		};
 
@@ -196,7 +196,7 @@ impl ApplicationDelegate {
 	///
 	/// Note that this request does not clean up any of the existing Loopers.
 	pub fn quit(&self) {
-		let mut message = Message::new(QUIT);
+		let message = Message::new(QUIT);
 		self.messenger.send(message, &self.messenger);
 	}
 }
@@ -256,26 +256,19 @@ impl<A> Context<A> where A: Send {
 	/// loop. This will drop the Looper and any resources (like Handlers and
 	/// its state) associated with it.
 	pub fn quit_looper(&self) {
-		let mut message = Message::new(QUIT);
+		let message = Message::new(QUIT);
 		self.looper_messenger.send(message, &self.handler_messenger);
 	}
 }
 
 pub trait ApplicationHooks {
-	// TODO: the second argument for each hook now is a &Messenger. This should
-	//       be a more context-like object in the future, that exposes more
-	//       information about the application.
-	fn quit_requested(&mut self, _application_messenger: &Messenger) -> bool {
-		true
+	fn ready_to_run(&mut self, _application: &ApplicationDelegate) {
 	}
 	
-	fn ready_to_run(&mut self, application: &ApplicationDelegate) {
-	}
-	
-	fn message_received(&mut self, application: &ApplicationDelegate, message: &Message) {
+	fn message_received(&mut self, _application: &ApplicationDelegate, _message: &Message) {
 	}
 
-	fn argv_received(&mut self, application: &ApplicationDelegate, argv: Vec<String>) {
+	fn argv_received(&mut self, _application: &ApplicationDelegate, _argv: Vec<String>) {
 	}
 }
 
