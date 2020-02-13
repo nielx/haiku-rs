@@ -133,7 +133,18 @@ impl Message {
 		self.header.data_size += (data_size + data_size_info) as u32;
 		Ok(())
 	}
-	
+
+	/// Retrieve an object that is stored in the message
+	///
+	/// You may retrieve any object that implements the Flattenable interface.
+	/// There may be more than one value stored, so you can use the `index`
+	/// parameter to iterate through the object. The first value is at
+	/// `index 0`.
+	///
+	/// This method will return `ErrorKind::NotFound` when the `name` is not
+	/// in this message, or it is of a different type.
+	/// Additionally, if the `index` is out of range, it will return
+	/// `ErrorKind::InvalidInput`.
 	pub fn find_data<T: Flattenable<T>>(&self, name: &str, index: usize) -> Result<T> {
 		let field_index = match self.find_field(name, T::type_code()) {
 			Ok(index) => index,
@@ -165,6 +176,15 @@ impl Message {
 		}
 	}
 
+	/// Replace existing data in the message with a new value.
+	///
+	/// The requirement is that the data of the type exists under the `name`,
+	/// at the `index`.
+	///
+	/// It returns `ErrorKind::NotFound` if the `name` does not exist, or it
+	/// has a different type. `ErrorKind::InvalidInput` if the `index` is out
+	/// of range, and otherwise any error that the `Flattenable` trait
+	/// implementation returns.
 	pub fn replace_data<T: Flattenable<T>>(&mut self, name: &str, index: usize, data: &T) -> Result<()> {
 		if self.header.message_area > 0 {
 			// Todo: implement support for messages with areas
@@ -220,6 +240,13 @@ impl Message {
 		Ok(())
 	}
 
+	/// Remove data for `name` at `index`
+	///
+	/// In case you are removing the only element at `name`, the whole field
+	/// will be removed, effectively doing the same as `remove_field()`.
+	///
+	/// This will return `ErrorKind::NotFound` when the identifier does not
+	/// exist, and `ErrorKind::InvalidInput` when the `index` is out of range.
 	pub fn remove_data(&mut self, name: &str, index: usize) -> Result<()> {
 		if self.header.message_area > 0 {
 			// Todo: implement support for messages with areas
@@ -281,6 +308,10 @@ impl Message {
 		Ok(())
 	}
 
+	/// Remove all data for a field
+	///
+	/// This removes all data stored at the identfier `name`. It will return
+	/// `ErrorKind::NotFound` if there is no data stored at `name`.
 	pub fn remove_field(&mut self, name: &str) -> Result<()> {
 		if self.header.message_area > 0 {
 			// Todo: implement support for messages with areas
@@ -322,7 +353,7 @@ impl Message {
 				next
 			}
 		};
-		
+
 		// Then update the hash table
 		for i in 0..self.header.hash_table.len() {
 			if self.header.hash_table[i] > field_index as i32 {
@@ -331,7 +362,7 @@ impl Message {
 				self.header.hash_table[i] = next_field;
 			}
 		}
-		
+
 		// Update the indexes of each field
 		for field in self.fields.iter_mut() {
 			if field.next_field > field_index as i32 {
@@ -340,10 +371,10 @@ impl Message {
 				field.next_field = next_field;
 			}
 		}
-		
+
 		// Remove the field
 		self.fields.remove(field_index);
-		
+
 		// Update the header count
 		self.header.field_count = self.header.field_count - 1;
 		self.header.data_size = ((self.header.data_size as isize) + change) as u32;
