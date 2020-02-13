@@ -141,21 +141,21 @@ impl Default for Notification {
 impl Notification {
 	fn to_message(&self) -> Result<Message> {
 		let mut message = Message::new(NOTIFICATION_MESSAGE);
-		message.add_data("_appname", &self.source_name);
-		message.add_data("_signature", &self.source_signature);
+		message.add_data("_appname", &self.source_name).unwrap();
+		message.add_data("_signature", &self.source_signature).unwrap();
 		let type_: i32 = match &self.notification_type {
 			NotificationType::Information => 0,
 			NotificationType::Important => 1,
 			NotificationType::Error => 2,
 			NotificationType::Progress => 3
 		};
-		message.add_data("_type", &type_);
-		self.group.as_ref().map(|group| message.add_data("_group", group));
-		self.title.as_ref().map(|title| message.add_data("_title", title));
-		self.content.as_ref().map(|content| message.add_data("_content", content));
-		self.id.as_ref().map(|id| message.add_data("_messageID", id));
+		message.add_data("_type", &type_).unwrap();
+		self.group.as_ref().map(|group| message.add_data("_group", group).unwrap());
+		self.title.as_ref().map(|title| message.add_data("_title", title).unwrap());
+		self.content.as_ref().map(|content| message.add_data("_content", content).unwrap());
+		self.id.as_ref().map(|id| message.add_data("_messageID", id).unwrap());
 		if self.notification_type == NotificationType::Progress {
-			message.add_data("_progress", &self.progress);
+			message.add_data("_progress", &self.progress).unwrap();
 		}
 
 		if self.notification_type == NotificationType::Progress {
@@ -166,7 +166,7 @@ impl Notification {
 				} else {
 					self.progress
 				};
-			message.add_data("_progress", &progress);
+			message.add_data("_progress", &progress).unwrap();
 		}
 		// TODO: message.add_data("_onClickApp"
 		// TODO: message.add_data("_onClickFile"
@@ -191,7 +191,7 @@ impl Notification {
 			None => 0
 		};
 		if timeout_ms > 0 {
-			message.add_data("timeout", &timeout_ms);
+			message.add_data("timeout", &timeout_ms).unwrap();
 		}
 		let messenger = Messenger::from_signature(NOTIFICATION_SERVER_SIGNATURE, None)?;
 		messenger.send(message, replyto)?;

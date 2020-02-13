@@ -408,10 +408,10 @@ impl ServerLink {
 		let uid = unsafe { libc::getuid() };
 
 		println!("uid: {}", uid);
-		request.add_data("user", &(uid as i32));
-		request.add_data("version", &server_protocol::AS_PROTOCOL_VERSION);
+		request.add_data("user", &(uid as i32)).unwrap();
+		request.add_data("version", &server_protocol::AS_PROTOCOL_VERSION).unwrap();
 		match env::var_os("TARGET_SCREEN") {
-			Some(target) => request.add_data("target", &String::from(target.to_str().unwrap())),
+			Some(target) => request.add_data("target", &String::from(target.to_str().unwrap())).unwrap(),
 			None => ()
 		}
 

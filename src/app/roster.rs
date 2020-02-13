@@ -34,9 +34,9 @@ impl LaunchRoster {
 		let constant: u32 = haiku_constant!('l','n','d','a');
 		let mut message = Message::new(constant);
 		// TODO: add support for &str as Flattenable
-		message.add_data("name", &String::from(signature));
+		message.add_data("name", &String::from(signature)).unwrap();
 		let uid = unsafe { getuid() };
-		message.add_data("user", &(uid as i32));
+		message.add_data("user", &(uid as i32)).unwrap();
 
 		// Send message
 		let response = self.messenger.send_and_wait_for_reply(message, None)?;
@@ -101,7 +101,7 @@ impl Roster {
 	/// will return None.
 	pub fn get_running_app_info(&self, team: &Team) -> Option<AppInfo> {
 		let mut request = Message::new(haiku_constant!('r','g','a','i'));
-		request.add_data("team", &team.get_team_id());
+		request.add_data("team", &team.get_team_id()).unwrap();
 		let response = self.messenger.send_and_wait_for_reply(request, None);
 
 		if response.is_err() {
@@ -127,7 +127,7 @@ impl Roster {
 	/// will return None.
 	pub fn get_app_info(&self, signature: &str) -> Option<AppInfo> {
 		let mut request = Message::new(haiku_constant!('r','g','a','i'));
-		request.add_data("signature", &String::from(signature));
+		request.add_data("signature", &String::from(signature)).unwrap();
 		let response = self.messenger.send_and_wait_for_reply(request, None);
 		
 		if response.is_err() {
@@ -149,13 +149,13 @@ impl Roster {
 	{
 		// B_REG_ADD_APP
 		let mut request = Message::new(haiku_constant!('r','g','a','a'));
-		request.add_data("signature", signature);
-		request.add_data("ref", entry);
-		request.add_data("flags", &flags);
-		request.add_data("team", &team);
-		request.add_data("thread", &thread);
-		request.add_data("port", &port);
-		request.add_data("full_registration", &full_registration);
+		request.add_data("signature", signature).unwrap();
+		request.add_data("ref", entry).unwrap();
+		request.add_data("flags", &flags).unwrap();
+		request.add_data("team", &team).unwrap();
+		request.add_data("thread", &thread).unwrap();
+		request.add_data("port", &port).unwrap();
+		request.add_data("full_registration", &full_registration).unwrap();
 		let response = self.messenger.send_and_wait_for_reply(request, None)?;
 		if response.what() == B_REG_SUCCESS {
 			if !full_registration && team < 0 {
@@ -184,9 +184,9 @@ impl Roster {
 	{
 		// B_REG_IS_APP_REGISTERED
 		let mut request = Message::new(haiku_constant!('r','g','i','p'));
-		request.add_data("ref", entry);
-		request.add_data("team", &team);
-		request.add_data("token", &(token as i32));
+		request.add_data("ref", entry).unwrap();
+		request.add_data("team", &team).unwrap();
+		request.add_data("token", &(token as i32)).unwrap();
 
 		let response = self.messenger.send_and_wait_for_reply(request, None)?;
 		if response.what() == B_REG_SUCCESS {
@@ -215,7 +215,7 @@ impl Roster {
 	pub(crate) fn remove_application(&self, team: team_id) -> Result<()> {
 		// B_REG_REMOVE_APP
 		let mut request = Message::new(haiku_constant!('r','g','r','a'));
-		request.add_data("team", &team);
+		request.add_data("team", &team).unwrap();
 
 		let response = self.messenger.send_and_wait_for_reply(request, None)?;
 		if response.what() == B_REG_SUCCESS {

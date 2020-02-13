@@ -116,7 +116,7 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 		// Add the ARGV_RECEIVED message to the queue
 		let mut argv_message = Message::new(B_ARGV_RECEIVED);
 		argv_message.header.target = B_PREFERRED_TOKEN;
-		argv_message.add_data("_internal", &true);
+		argv_message.add_data("_internal", &true).unwrap();
 		inner_looper.message_queue.push_back(argv_message);
 
 		// Add the READY_TO_RUN message to the queue
@@ -417,7 +417,7 @@ mod tests {
 				ADD_TO_COUNTER => {
 					self.count += 1;
 					let mut response = Message::new(INFORM_APP_ABOUT_COUNTER);
-					response.add_data("count", &self.count);
+					response.add_data("count", &self.count).unwrap();
 					context.application.messenger.send_and_ask_reply(response, &context.looper.messenger).unwrap();
 				},
 				_ => panic!("We are not supposed to receive messages other than ADD_TO_COUNTER"),

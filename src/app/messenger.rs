@@ -203,9 +203,9 @@ fn test_synchronous_message_sending() {
 	// B_GET_LAUNCH_DATA is defined as 'lnda' see LaunchDaemonDefs.h
 	let constant: u32 = haiku_constant!('l', 'n', 'd', 'a');
 	let mut app_data_message = Message::new(constant);
-	app_data_message.add_data("name", &String::from("application/x-vnd.haiku-registrar"));
+	app_data_message.add_data("name", &String::from("application/x-vnd.haiku-registrar")).unwrap();
 	let uid = unsafe { getuid() };
-	app_data_message.add_data("user", &(uid as i32));
+	app_data_message.add_data("user", &(uid as i32)).unwrap();
 	let port = Port::find("system:launch_daemon").unwrap();
 	let messenger = Messenger::from_port(&port).unwrap();
 	let response_message = messenger.send_and_wait_for_reply(app_data_message, None).unwrap();
