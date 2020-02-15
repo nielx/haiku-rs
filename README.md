@@ -18,27 +18,23 @@ dependency in your `Cargo.toml` file.
 
 Currently the following kernel interfaces are implemented:
 
-* Attribute functions
-* Debugger (the call, not the interface)
-* File attributes
-* Messaging
-* Ports
+* Application Kit
+  - Initial implementation of Handlers, Loopers, Messengers and Messages
+  - Access to the Registrar (limited for now)
+  - Notification system
+* Kernel Kit
+  - High level interface to Ports and Teams
+* Storage Kit
+  - File Attributes
+  - Basic MimeType
+* Support Kit
+  - Haiku specific Error object
+  - Flattenable interface
 
-## What is still to be done
+The implementation of the messaging system currently is at a high enough level
+that it may be used to communicate with other Haiku applications and system
+services.
 
-* Areas
-* Teams
-* Time & Alarm
-* System Information
-* FS Index
-* FS Info
-* FS Query
-* FS Volume
-* More access to the Registrar
+## Further information
 
-## What probably will never be done
-
-* Native semaphores
-* Native threads
-* Native signals
-* Image loading
+This crate is developed on [github](https://github.com/nielx/haiku-rs)
