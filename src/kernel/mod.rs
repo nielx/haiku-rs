@@ -387,7 +387,10 @@ pub(crate) mod helpers {
 		Ok(path)
 	}
 }
-				
+
+/// Pause execution of the application and open the Debugger
+///
+/// You can show the `message` to the user when the debugger opens.			
 pub fn debugger(message: &str) {
 	use libc::c_char;
 	use std::ffi::CString;
