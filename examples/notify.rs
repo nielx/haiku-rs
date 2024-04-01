@@ -7,20 +7,24 @@ extern crate getopts;
 extern crate haiku;
 
 use getopts::Options;
-use haiku::app::{Application, ApplicationDelegate, ApplicationHooks, Notification, NotificationType};
+use haiku::app::{
+	Application, ApplicationDelegate, ApplicationHooks, Notification, NotificationType,
+};
 
 const SIGNATURE: &str = "application/x-vnd.HaikuRS-notify";
 
 struct NotifyApp {
 	options: Options,
-	notification: Option<Notification>
+	notification: Option<Notification>,
 }
 
 impl ApplicationHooks for NotifyApp {
 	fn ready_to_run(&mut self, application: &ApplicationDelegate) {
 		match &self.notification {
-			Some(n) => n.send(&application.messenger, None).expect("Error sending notification"),
-			None => print_usage("notify", &self.options)
+			Some(n) => n
+				.send(&application.messenger, None)
+				.expect("Error sending notification"),
+			None => print_usage("notify", &self.options),
 		}
 		application.quit();
 	}
@@ -32,7 +36,7 @@ impl ApplicationHooks for NotifyApp {
 		}
 		let mut matches = match self.options.parse(&argv[1..]) {
 			Ok(m) => m,
-			Err(f) => { 
+			Err(f) => {
 				println!("{}", f.to_string());
 				return;
 			}
@@ -63,7 +67,7 @@ impl ApplicationHooks for NotifyApp {
 				"progress" => NotificationType::Progress,
 				_ => {
 					println!("Invalid TYPE parameter. Please pass one of 'information', 'important', 'error' or 'progress'");
-					return
+					return;
 				}
 			};
 		}
@@ -104,7 +108,7 @@ impl ApplicationHooks for NotifyApp {
 			}
 			notification.progress = progress;
 		}
- 
+
 		// Store the notification for display on ready_to_run
 		self.notification = Some(notification);
 	}
@@ -112,11 +116,31 @@ impl ApplicationHooks for NotifyApp {
 
 fn build_options() -> Options {
 	let mut options = Options::new();
-	options.optopt("t", "type", "the type of option (information, important, error, progress)", "TYPE");
+	options.optopt(
+		"t",
+		"type",
+		"the type of option (information, important, error, progress)",
+		"TYPE",
+	);
 	options.optopt("T", "title", "title for your notification", "TITLE");
-	options.optopt("g", "group", "the group name for this notification", "GROUP");
-	options.optopt("i", "id", "the id that uniquely identifies this notification", "ID");
-	options.optopt("p", "progress", "the value between 0.0 and 1.0 that expresses the progress, defaults to 0.0", "PROGRESS");
+	options.optopt(
+		"g",
+		"group",
+		"the group name for this notification",
+		"GROUP",
+	);
+	options.optopt(
+		"i",
+		"id",
+		"the id that uniquely identifies this notification",
+		"ID",
+	);
+	options.optopt(
+		"p",
+		"progress",
+		"the value between 0.0 and 1.0 that expresses the progress, defaults to 0.0",
+		"PROGRESS",
+	);
 	options.optflag("h", "help", "print this help menu");
 	options
 }
@@ -124,10 +148,13 @@ fn build_options() -> Options {
 fn print_usage(program: &str, opts: &Options) {
 	let brief = format!("Usage: {} [options] MESSAGE", program);
 	print!("{}", opts.usage(&brief));
-}	
+}
 
 fn main() {
-	let state = NotifyApp{ options: build_options(), notification: None };
+	let state = NotifyApp {
+		options: build_options(),
+		notification: None,
+	};
 	let app = Application::new(SIGNATURE, state);
 	app.run().unwrap();
 }

@@ -12,16 +12,16 @@ use std::mem;
 use std::str;
 use std::time::Duration;
 
-use libc::ssize_t;
-use haiku_sys::{port_id, read_port_etc, port_buffer_size_etc, B_TIMEOUT};
 use haiku_sys::errors::B_INTERRUPTED;
+use haiku_sys::{port_buffer_size_etc, port_id, read_port_etc, B_TIMEOUT};
+use libc::ssize_t;
 
-use ::app::message::Message;
-use ::app::messenger::Messenger;
-use ::kernel::ports::Port;
-use ::support::{Result, Flattenable, HaikuError, ErrorKind};
+use app::message::Message;
+use app::messenger::Messenger;
+use kernel::ports::Port;
+use support::{ErrorKind, Flattenable, HaikuError, Result};
 
-const LINK_CODE: i32 = haiku_constant!('_','P','T','L') as i32;
+const LINK_CODE: i32 = haiku_constant!('_', 'P', 'T', 'L') as i32;
 const INITIAL_BUFFER_SIZE: usize = 2048;
 const BUFFER_WATERMARK: u64 = INITIAL_BUFFER_SIZE as u64 - 24;
 const MAX_BUFFER_SIZE: usize = 65536;
@@ -72,13 +72,13 @@ pub(crate) mod server_protocol {
 pub(crate) struct LinkSender {
 	port: Port,
 	cursor: Cursor<Vec<u8>>,
-	current_message_start: u64
+	current_message_start: u64,
 }
 
 // TODO: Re-enable dead_code warnings when class is further tested
 #[allow(dead_code)]
 impl LinkSender {
-	pub(crate) fn start_message(&mut self, code: i32, mut size_hint: usize) -> Result<()> {		
+	pub(crate) fn start_message(&mut self, code: i32, mut size_hint: usize) -> Result<()> {
 		self.end_message(false)?;
 
 		// Switch memory allocation method when size is larger than the buffersize
@@ -113,7 +113,9 @@ impl LinkSender {
 		self.cursor.set_position(self.current_message_start);
 		self.cursor.write(&size.flatten()).unwrap();
 		if needs_reply {
-			self.cursor.seek(SeekFrom::Current(mem::size_of::<u32>() as i64)).unwrap();
+			self.cursor
+				.seek(SeekFrom::Current(mem::size_of::<u32>() as i64))
+				.unwrap();
 			self.cursor.write(&NEEDS_REPLY.flatten()).unwrap();
 		}
 		self.cursor.set_position(last_position);
@@ -124,7 +126,10 @@ impl LinkSender {
 	pub(crate) fn attach<T: Flattenable<T>>(&mut self, data: &T) -> Result<()> {
 		// Check if we are currently in a message
 		if self.cursor.position() == self.current_message_start {
-			return Err(HaikuError::new(ErrorKind::InvalidInput, "Cannot attach data before starting a message"));
+			return Err(HaikuError::new(
+				ErrorKind::InvalidInput,
+				"Cannot attach data before starting a message",
+			));
 		}
 
 		// Check if the data size will overrun the buffer, if so switch to area
@@ -159,7 +164,7 @@ impl LinkSender {
 		}
 
 		let buffer = &self.cursor.get_ref().as_slice()[0..self.current_message_start as usize];
-		
+
 		self.port.write(LINK_CODE, buffer)?;
 
 		self.cursor.set_position(0);
@@ -200,17 +205,17 @@ impl LinkSender {
 //         that it should me made more fault-intolerant (either for allowing future
 //         changes to the protocol, or because we are basically operating on foreign
 //         data).
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 enum Position {
 	Start(usize),
 	Inside(usize, usize),
-	Empty
+	Empty,
 }
 
 pub(crate) struct LinkReceiver {
 	pub(crate) port: Port,
 	buffer: Vec<u8>,
-	position: Position
+	position: Position,
 }
 
 impl Iterator for LinkReceiver {
@@ -240,7 +245,7 @@ impl LinkReceiver {
 		if fetch {
 			match self.fetch_from_port(timeout) {
 				Ok(_) => (),
-				Err(_) => return None
+				Err(_) => return None,
 			}
 		}
 		self.get_next_message_from_buffer()
@@ -249,9 +254,17 @@ impl LinkReceiver {
 	// read data. If T has a variable size, the size parameter needs to be passed. If T is a fixed size, it is ignored.
 	pub(crate) fn read<T: Flattenable<T>>(&mut self, mut size: usize) -> Result<T> {
 		let (pos, end) = match self.position {
-			Position::Start(_) => return Err(HaikuError::new(ErrorKind::NotAllowed, "LinkReceiver currently is at the start of a message, read the header data first")),
-			Position::Inside(pos,end) => (pos, end),
-			Position::Empty => return Err(HaikuError::new(ErrorKind::NotAllowed, "LinkReceiver currently is not reading a message, read the header data first")),
+			Position::Start(_) => return Err(HaikuError::new(
+				ErrorKind::NotAllowed,
+				"LinkReceiver currently is at the start of a message, read the header data first",
+			)),
+			Position::Inside(pos, end) => (pos, end),
+			Position::Empty => {
+				return Err(HaikuError::new(
+					ErrorKind::NotAllowed,
+					"LinkReceiver currently is not reading a message, read the header data first",
+				))
+			}
 		};
 
 		// Do some checks on size
@@ -259,10 +272,13 @@ impl LinkReceiver {
 			size = mem::size_of::<T>();
 		}
 		if size > (end - pos) {
-			return Err(HaikuError::new(ErrorKind::InvalidData, "size of the data is larger than the remainder of the buffer"));
+			return Err(HaikuError::new(
+				ErrorKind::InvalidData,
+				"size of the data is larger than the remainder of the buffer",
+			));
 		}
 		// Try to unflatten the data
-		let result = T::unflatten(&self.buffer[pos..pos+size]);
+		let result = T::unflatten(&self.buffer[pos..pos + size]);
 		if result.is_ok() {
 			self.position = Position::Inside(pos + size, end);
 		}
@@ -272,16 +288,27 @@ impl LinkReceiver {
 	// Helper function to read a string
 	pub(crate) fn read_string(&mut self) -> Result<String> {
 		let (mut pos, end) = match self.position {
-			Position::Start(_) => return Err(HaikuError::new(ErrorKind::NotAllowed, "LinkReceiver currently is at the start of a message, read the header data first")),
-			Position::Inside(pos,end) => (pos, end),
-			Position::Empty => return Err(HaikuError::new(ErrorKind::NotAllowed, "LinkReceiver currently is not reading a message, read the header data first")),
+			Position::Start(_) => return Err(HaikuError::new(
+				ErrorKind::NotAllowed,
+				"LinkReceiver currently is at the start of a message, read the header data first",
+			)),
+			Position::Inside(pos, end) => (pos, end),
+			Position::Empty => {
+				return Err(HaikuError::new(
+					ErrorKind::NotAllowed,
+					"LinkReceiver currently is not reading a message, read the header data first",
+				))
+			}
 		};
 
 		let size = self.read::<i32>(0)?;
 		// if the size < 0 we are probably reading invalid data, so rewind
 		if size < 0 {
 			self.position = Position::Inside(pos, end);
-			return Err(HaikuError::new(ErrorKind::InvalidData, "Invalid size for string"))
+			return Err(HaikuError::new(
+				ErrorKind::InvalidData,
+				"Invalid size for string",
+			));
 		} else {
 			pos += mem::size_of::<i32>();
 		}
@@ -291,14 +318,22 @@ impl LinkReceiver {
 		} else {
 			let size: usize = size as usize;
 			if size > (end - pos) {
-				return Err(HaikuError::new(ErrorKind::InvalidData, "size of the data is larger than the remainder of the buffer"));
+				return Err(HaikuError::new(
+					ErrorKind::InvalidData,
+					"size of the data is larger than the remainder of the buffer",
+				));
 			}
 			// don't use regular unflattening, as our strings are not \0 terminated
-			let data = match str::from_utf8(&self.buffer[pos..pos+size]) {
+			let data = match str::from_utf8(&self.buffer[pos..pos + size]) {
 				Ok(borrowed_data) => String::from(borrowed_data),
-				Err(_) => return Err(HaikuError::new(ErrorKind::InvalidData, "the string contains invalid characters"))
+				Err(_) => {
+					return Err(HaikuError::new(
+						ErrorKind::InvalidData,
+						"the string contains invalid characters",
+					))
+				}
 			};
-			self.position = Position::Inside(pos+size, end);
+			self.position = Position::Inside(pos + size, end);
 			Ok(data)
 		}
 	}
@@ -308,15 +343,18 @@ impl LinkReceiver {
 	fn fetch_from_port(&mut self, timeout: Duration) -> Result<()> {
 		let timeout_ms = timeout.as_secs() as i64 * 1_000_000 + timeout.subsec_micros() as i64;
 		// check if we need to adjust the size of the buffer
-		let mut buffer_size: ssize_t =  B_INTERRUPTED as ssize_t;
+		let mut buffer_size: ssize_t = B_INTERRUPTED as ssize_t;
 		while buffer_size == (B_INTERRUPTED as ssize_t) {
-			buffer_size = unsafe { port_buffer_size_etc(self.port.get_port_id(), B_TIMEOUT, timeout_ms) };
+			buffer_size =
+				unsafe { port_buffer_size_etc(self.port.get_port_id(), B_TIMEOUT, timeout_ms) };
 		}
 		if buffer_size < 0 {
 			return Err(HaikuError::from_raw_os_error(buffer_size as i32));
 		} else if buffer_size == 0 {
 			// no new data, reset the buffer nontheless.
-			unsafe { self.buffer.set_len(0); };
+			unsafe {
+				self.buffer.set_len(0);
+			};
 			self.position = Position::Empty;
 			return Ok(());
 		}
@@ -337,7 +375,16 @@ impl LinkReceiver {
 		let mut len: ssize_t = B_INTERRUPTED as ssize_t;
 		let mut type_code: i32 = 0;
 		while len == (B_INTERRUPTED as ssize_t) {
-			len = unsafe { read_port_etc(self.port.get_port_id(), &mut type_code, pbuffer, buffer_size, B_TIMEOUT, 0) };
+			len = unsafe {
+				read_port_etc(
+					self.port.get_port_id(),
+					&mut type_code,
+					pbuffer,
+					buffer_size,
+					B_TIMEOUT,
+					0,
+				)
+			};
 		}
 		if len > 0 && len != buffer_size as isize {
 			panic!("read_port does not return the expected number of bytes");
@@ -349,7 +396,9 @@ impl LinkReceiver {
 		} else if type_code != LINK_CODE {
 			panic!("read_port does not return the expected type code");
 		} else {
-			unsafe { self.buffer.set_len(len as usize); };
+			unsafe {
+				self.buffer.set_len(len as usize);
+			};
 			self.position = Position::Start(0);
 			Ok(())
 		}
@@ -359,7 +408,7 @@ impl LinkReceiver {
 		match self.position {
 			Position::Start(pos) => self.read_message_header(pos),
 			Position::Inside(_, end) => self.read_message_header(end),
-			Position::Empty => None
+			Position::Empty => None,
 		}
 	}
 
@@ -371,9 +420,9 @@ impl LinkReceiver {
 		}
 
 		// REVIEW: sizes are hardcoded here
-		let size = i32::unflatten(&self.buffer[pos..pos+4]).unwrap() as usize;
-		let code = u32::unflatten(&self.buffer[pos+4..pos+8]).unwrap();
-		let flags = u32::unflatten(&self.buffer[pos+8..pos+12]).unwrap();
+		let size = i32::unflatten(&self.buffer[pos..pos + 4]).unwrap() as usize;
+		let code = u32::unflatten(&self.buffer[pos + 4..pos + 8]).unwrap();
+		let flags = u32::unflatten(&self.buffer[pos + 8..pos + 12]).unwrap();
 
 		if size < HEADER_SIZE || size > (self.buffer.len() - pos) {
 			self.invalidate_buffer();
@@ -394,7 +443,7 @@ impl LinkReceiver {
 
 pub(crate) struct ServerLink {
 	pub(crate) sender: LinkSender,
-	pub(crate) receiver: LinkReceiver
+	pub(crate) receiver: LinkReceiver,
 }
 
 const APPSERVER_PORT_NAME: &str = "a<app_server";
@@ -402,17 +451,21 @@ const DEFAULT_PORT_CAPACITY: i32 = 100;
 
 impl ServerLink {
 	pub(crate) fn create_desktop_connection() -> Result<ServerLink> {
-		let receiver_port = Port::create(APPSERVER_PORT_NAME, DEFAULT_PORT_CAPACITY)?; 
+		let receiver_port = Port::create(APPSERVER_PORT_NAME, DEFAULT_PORT_CAPACITY)?;
 
 		let mut request = Message::new(server_protocol::AS_GET_DESKTOP as u32);
 		let uid = unsafe { libc::getuid() };
 
 		println!("uid: {}", uid);
 		request.add_data("user", &(uid as i32)).unwrap();
-		request.add_data("version", &server_protocol::AS_PROTOCOL_VERSION).unwrap();
+		request
+			.add_data("version", &server_protocol::AS_PROTOCOL_VERSION)
+			.unwrap();
 		match env::var_os("TARGET_SCREEN") {
-			Some(target) => request.add_data("target", &String::from(target.to_str().unwrap())).unwrap(),
-			None => ()
+			Some(target) => request
+				.add_data("target", &String::from(target.to_str().unwrap()))
+				.unwrap(),
+			None => (),
 		}
 
 		let server = Messenger::from_signature("application/x-vnd.Haiku-app_server", None)?;
@@ -422,16 +475,16 @@ impl ServerLink {
 		let server_port: port_id = reply.find_data("port", 0)?;
 		let sender_cursor = Cursor::new(Vec::with_capacity(INITIAL_BUFFER_SIZE));
 		Ok(ServerLink {
-			sender: LinkSender{ 
-				port: Port::from_id(server_port).unwrap(), 
+			sender: LinkSender {
+				port: Port::from_id(server_port).unwrap(),
 				cursor: sender_cursor,
-				current_message_start: 0
+				current_message_start: 0,
 			},
-			receiver: LinkReceiver{
+			receiver: LinkReceiver {
 				port: receiver_port,
 				buffer: Vec::with_capacity(INITIAL_BUFFER_SIZE),
-				position: Position::Empty
-			}
+				position: Position::Empty,
+			},
 		})
 	}
 }
@@ -442,7 +495,9 @@ fn test_server_link() {
 	// Create a mock looper port
 	let looper_port = Port::create("mock_looper", 100).unwrap();
 	// Simulate attaching a program
-	link.sender.start_message(server_protocol::AS_CREATE_APP, 0).unwrap();
+	link.sender
+		.start_message(server_protocol::AS_CREATE_APP, 0)
+		.unwrap();
 	link.sender.attach(&link.sender.get_port_id()).unwrap();
 	link.sender.attach(&looper_port.get_port_id()).unwrap();
 }
@@ -455,12 +510,12 @@ fn test_link_sender_receiver_behaviour() {
 	let mut sender = LinkSender {
 		port: sender_port,
 		cursor: sender_cursor,
-		current_message_start: 0
+		current_message_start: 0,
 	};
 	let mut receiver = LinkReceiver {
 		port: receiver_port,
 		buffer: Vec::with_capacity(INITIAL_BUFFER_SIZE),
-		position: Position::Empty
+		position: Position::Empty,
 	};
 
 	// Scenario 1
@@ -480,12 +535,15 @@ fn test_link_sender_receiver_behaviour() {
 	sender.attach_string(test_string).unwrap();
 	assert_eq!(sender.cursor.position(), 41);
 	sender.end_message(true).unwrap();
-	let comparison: Vec<u8> = vec!(41, 0, 0, 0, 99, 0, 0, 0, 1, 0, 0, 0, 255, 255, 255, 255, 21, 0, 0, 0, 116, 104, 105, 115, 32, 105, 115, 32, 97, 32, 116, 101, 115, 116, 32, 115, 116, 114, 105, 110, 103);
+	let comparison: Vec<u8> = vec![
+		41, 0, 0, 0, 99, 0, 0, 0, 1, 0, 0, 0, 255, 255, 255, 255, 21, 0, 0, 0, 116, 104, 105, 115,
+		32, 105, 115, 32, 97, 32, 116, 101, 115, 116, 32, 115, 116, 114, 105, 110, 103,
+	];
 	assert_eq!(sender.cursor.get_ref(), &comparison);
 	sender.flush(true).unwrap();
 	assert_eq!(sender.cursor.position(), 0);
 
-	assert!(receiver.fetch_from_port(Duration::new(0,0)).is_ok());
+	assert!(receiver.fetch_from_port(Duration::new(0, 0)).is_ok());
 	assert_eq!(&receiver.buffer, &comparison);
 	assert_eq!(receiver.position, Position::Start(0));
 
@@ -508,7 +566,7 @@ fn test_link_sender_receiver_behaviour() {
 	//  Check buffer (we do not discard the buffer)
 	sender.start_message(100, 0).unwrap();
 	sender.flush(false).unwrap();
-	let comparison: Vec<u8> = vec!(12, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0);
+	let comparison: Vec<u8> = vec![12, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0];
 	assert_eq!(&sender.cursor.get_ref()[0..12], comparison.as_slice());
 	assert_eq!(sender.cursor.position(), 0);
 

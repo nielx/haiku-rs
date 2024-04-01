@@ -1,27 +1,30 @@
-use libc::{c_char, dev_t, getuid, ino_t};
-use haiku_sys::{B_MIME_TYPE_LENGTH, B_FILE_NAME_LENGTH, port_id, team_id, thread_id, status_t};
 use haiku_sys::errors::{B_ERROR, B_OK};
-use std::{mem, ptr};
+use haiku_sys::{port_id, status_t, team_id, thread_id, B_FILE_NAME_LENGTH, B_MIME_TYPE_LENGTH};
+use libc::{c_char, dev_t, getuid, ino_t};
 use std::result;
-use std::str::{Utf8Error, from_utf8};
+use std::str::{from_utf8, Utf8Error};
+use std::{mem, ptr};
 
-use ::app::message::Message;
-use ::app::messenger::Messenger;
-use ::kernel::helpers;
-use ::kernel::ports::Port;
-use ::kernel::teams::Team;
-use ::support::{ErrorKind, Flattenable, HaikuError, Result};
-use ::storage::sys::entry_ref;
+use app::message::Message;
+use app::messenger::Messenger;
+use kernel::helpers;
+use kernel::ports::Port;
+use kernel::teams::Team;
+use storage::sys::entry_ref;
+use support::{ErrorKind, Flattenable, HaikuError, Result};
 
 pub(crate) struct LaunchRoster {
-	messenger: Messenger
+	messenger: Messenger,
 }
 
 impl LaunchRoster {
 	fn init() -> LaunchRoster {
 		let port = Port::find("system:launch_daemon").expect("Cannot find the launch daemon");
-		let roster_messenger = Messenger::from_port(&port).expect("Cannot connect to the launch daemon");
-		LaunchRoster { messenger: roster_messenger }
+		let roster_messenger =
+			Messenger::from_port(&port).expect("Cannot connect to the launch daemon");
+		LaunchRoster {
+			messenger: roster_messenger,
+		}
 	}
 
 	/// Method to get the data that the launch_daemon has on an application
@@ -31,7 +34,7 @@ impl LaunchRoster {
 	/// returned. Note that inside this message there still may be an error,
 	/// but this is stored in the message.what.
 	pub(crate) fn get_data(&self, signature: &str) -> Result<Message> {
-		let constant: u32 = haiku_constant!('l','n','d','a');
+		let constant: u32 = haiku_constant!('l', 'n', 'd', 'a');
 		let mut message = Message::new(constant);
 		// TODO: add support for &str as Flattenable
 		message.add_data("name", &String::from(signature)).unwrap();
@@ -47,15 +50,14 @@ impl LaunchRoster {
 pub(crate) enum ApplicationRegistrationStatus {
 	Registered(AppInfo),
 	PreRegistered(AppInfo),
-	NotRegistered
+	NotRegistered,
 }
 
 pub(crate) enum ApplicationRegistrationResult {
 	Registered,
 	PreRegistered(i32),
-	OtherInstance(team_id, i32)
+	OtherInstance(team_id, i32),
 }
-
 
 /// This struct provides information about applications on the Haiku system
 ///
@@ -63,7 +65,7 @@ pub(crate) enum ApplicationRegistrationResult {
 /// is automatically initialized to retrieve information from Haiku's
 /// registrar.
 pub struct Roster {
-	messenger: Messenger
+	messenger: Messenger,
 }
 
 impl Roster {
@@ -72,7 +74,7 @@ impl Roster {
 	/// If there is a problem connecting to the registrar, this method
 	/// will return None.
 	pub fn get_app_list(&self) -> Option<Vec<Team>> {
-		let request = Message::new(haiku_constant!('r','g','a','l'));
+		let request = Message::new(haiku_constant!('r', 'g', 'a', 'l'));
 		let response = self.messenger.send_and_wait_for_reply(request, None);
 
 		if response.is_err() {
@@ -80,10 +82,10 @@ impl Roster {
 		}
 
 		let response = response.unwrap();
-		if response.what() == haiku_constant!('r','g','s','u') {
+		if response.what() == haiku_constant!('r', 'g', 's', 'u') {
 			let count = match response.get_info("teams") {
 				Some(info) => info.1,
-				None => return None
+				None => return None,
 			};
 			let mut result: Vec<Team> = Vec::with_capacity(count);
 			for index in 0..count {
@@ -100,7 +102,7 @@ impl Roster {
 	/// If there is a problem connecting to the registrar, this method
 	/// will return None.
 	pub fn get_running_app_info(&self, team: &Team) -> Option<AppInfo> {
-		let mut request = Message::new(haiku_constant!('r','g','a','i'));
+		let mut request = Message::new(haiku_constant!('r', 'g', 'a', 'i'));
 		request.add_data("team", &team.get_team_id()).unwrap();
 		let response = self.messenger.send_and_wait_for_reply(request, None);
 
@@ -110,7 +112,7 @@ impl Roster {
 		}
 
 		let response = response.unwrap();
-		if response.what() == haiku_constant!('r','g','s','u') {
+		if response.what() == haiku_constant!('r', 'g', 's', 'u') {
 			let flat_app_info = response.find_data::<FlatAppInfo>("app_info", 0).unwrap();
 			return Some(flat_app_info.to_app_info());
 		}
@@ -126,16 +128,18 @@ impl Roster {
 	/// If there is a problem connecting to the registrar, this method
 	/// will return None.
 	pub fn get_app_info(&self, signature: &str) -> Option<AppInfo> {
-		let mut request = Message::new(haiku_constant!('r','g','a','i'));
-		request.add_data("signature", &String::from(signature)).unwrap();
+		let mut request = Message::new(haiku_constant!('r', 'g', 'a', 'i'));
+		request
+			.add_data("signature", &String::from(signature))
+			.unwrap();
 		let response = self.messenger.send_and_wait_for_reply(request, None);
-		
+
 		if response.is_err() {
 			return None;
 		}
 
 		let response = response.unwrap();
-		if response.what() == haiku_constant!('r','g','s','u') {
+		if response.what() == haiku_constant!('r', 'g', 's', 'u') {
 			let flat_app_info = response.find_data::<FlatAppInfo>("app_info", 0).unwrap();
 			return Some(flat_app_info.to_app_info());
 		}
@@ -143,25 +147,38 @@ impl Roster {
 	}
 
 	/// Register or preregister an app in the Registrar
-	pub(crate) fn add_application(&self, signature: &String, entry: &entry_ref,
-		flags: u32, team: team_id, thread: thread_id, port: port_id,
-		full_registration: bool) -> Result<ApplicationRegistrationResult>
-	{
+	pub(crate) fn add_application(
+		&self,
+		signature: &String,
+		entry: &entry_ref,
+		flags: u32,
+		team: team_id,
+		thread: thread_id,
+		port: port_id,
+		full_registration: bool,
+	) -> Result<ApplicationRegistrationResult> {
 		// B_REG_ADD_APP
-		let mut request = Message::new(haiku_constant!('r','g','a','a'));
+		let mut request = Message::new(haiku_constant!('r', 'g', 'a', 'a'));
 		request.add_data("signature", signature).unwrap();
 		request.add_data("ref", entry).unwrap();
 		request.add_data("flags", &flags).unwrap();
 		request.add_data("team", &team).unwrap();
 		request.add_data("thread", &thread).unwrap();
 		request.add_data("port", &port).unwrap();
-		request.add_data("full_registration", &full_registration).unwrap();
+		request
+			.add_data("full_registration", &full_registration)
+			.unwrap();
 		let response = self.messenger.send_and_wait_for_reply(request, None)?;
 		if response.what() == B_REG_SUCCESS {
 			if !full_registration && team < 0 {
 				let token: i32 = match response.find_data("token", 0) {
 					Ok(token) => token,
-					Err(_) => return Err(HaikuError::new(ErrorKind::InvalidData, "No token for preregistration by Registrar"))
+					Err(_) => {
+						return Err(HaikuError::new(
+							ErrorKind::InvalidData,
+							"No token for preregistration by Registrar",
+						))
+					}
 				};
 				Ok(ApplicationRegistrationResult::PreRegistered(token))
 			} else {
@@ -171,19 +188,28 @@ impl Roster {
 			let token: Result<i32> = response.find_data("token", 0);
 			let team: Result<team_id> = response.find_data("team", 0);
 			if token.is_ok() && team.is_ok() {
-				Ok(ApplicationRegistrationResult::OtherInstance(team.unwrap(), token.unwrap()))
+				Ok(ApplicationRegistrationResult::OtherInstance(
+					team.unwrap(),
+					token.unwrap(),
+				))
 			} else {
-				Err(HaikuError::new(ErrorKind::InvalidData, "Invalid registration response by Registrar"))
+				Err(HaikuError::new(
+					ErrorKind::InvalidData,
+					"Invalid registration response by Registrar",
+				))
 			}
 		}
 	}
 
 	/// Check on the registrar if the app is registered
-	pub(crate) fn is_application_registered(&self, entry: &entry_ref,
-		team: team_id, token: u32) -> Result<ApplicationRegistrationStatus>
-	{
+	pub(crate) fn is_application_registered(
+		&self,
+		entry: &entry_ref,
+		team: team_id,
+		token: u32,
+	) -> Result<ApplicationRegistrationStatus> {
 		// B_REG_IS_APP_REGISTERED
-		let mut request = Message::new(haiku_constant!('r','g','i','p'));
+		let mut request = Message::new(haiku_constant!('r', 'g', 'i', 'p'));
 		request.add_data("ref", entry).unwrap();
 		request.add_data("team", &team).unwrap();
 		request.add_data("token", &(token as i32)).unwrap();
@@ -194,12 +220,17 @@ impl Roster {
 			let pre_registered: bool = response.find_data("pre-registered", 0).unwrap_or(false);
 			let app_info: Option<AppInfo> = match response.find_data::<FlatAppInfo>("app_info", 0) {
 				Ok(info) => Some(info.to_app_info()),
-				Err(_) => None
+				Err(_) => None,
 			};
 			if (pre_registered || registered) && app_info.is_none() {
-				Err(HaikuError::new(ErrorKind::InvalidData, "The Registrar returned an invalid response"))
+				Err(HaikuError::new(
+					ErrorKind::InvalidData,
+					"The Registrar returned an invalid response",
+				))
 			} else if pre_registered {
-				Ok(ApplicationRegistrationStatus::PreRegistered(app_info.unwrap()))
+				Ok(ApplicationRegistrationStatus::PreRegistered(
+					app_info.unwrap(),
+				))
 			} else if registered {
 				Ok(ApplicationRegistrationStatus::Registered(app_info.unwrap()))
 			} else {
@@ -207,14 +238,17 @@ impl Roster {
 			}
 		} else {
 			let errno: i32 = response.find_data("error", 0).unwrap_or(-1);
-			Err(HaikuError::new(ErrorKind::InvalidData, format!("The Registrar returned an error on request: {}", errno)))
+			Err(HaikuError::new(
+				ErrorKind::InvalidData,
+				format!("The Registrar returned an error on request: {}", errno),
+			))
 		}
 	}
 
 	/// Unregister a previously registered application
 	pub(crate) fn remove_application(&self, team: team_id) -> Result<()> {
 		// B_REG_REMOVE_APP
-		let mut request = Message::new(haiku_constant!('r','g','r','a'));
+		let mut request = Message::new(haiku_constant!('r', 'g', 'r', 'a'));
 		request.add_data("team", &team).unwrap();
 
 		let response = self.messenger.send_and_wait_for_reply(request, None)?;
@@ -227,10 +261,8 @@ impl Roster {
 	}
 }
 
-
-const B_REG_APP_INFO_TYPE: u32 = haiku_constant!('r','g','a','i');
-const B_REG_SUCCESS: u32 = haiku_constant!('r','g','s','u');
-
+const B_REG_APP_INFO_TYPE: u32 = haiku_constant!('r', 'g', 'a', 'i');
+const B_REG_SUCCESS: u32 = haiku_constant!('r', 'g', 's', 'u');
 
 // It is not possible to safely get references from packed structs. Therefore
 // we have a private FlatAppInfo to read data from messages, and a public
@@ -245,19 +277,22 @@ struct FlatAppInfo {
 	pub ref_device: dev_t,
 	pub ref_directory: ino_t,
 	signature: [u8; B_MIME_TYPE_LENGTH],
-	ref_name: [c_char; B_FILE_NAME_LENGTH + 1]
+	ref_name: [c_char; B_FILE_NAME_LENGTH + 1],
 }
-
 
 impl FlatAppInfo {
 	fn to_app_info(&self) -> AppInfo {
 		let signature = match FlatAppInfo::str_from_array_with_or_without_nul(&self.signature) {
 			Ok(value) => String::from(value),
-			Err(_) => String::new()
+			Err(_) => String::new(),
 		};
-		let path = match helpers::get_path_for_entry_ref(self.ref_device, self.ref_directory, self.ref_name.as_ptr()) {
+		let path = match helpers::get_path_for_entry_ref(
+			self.ref_device,
+			self.ref_directory,
+			self.ref_name.as_ptr(),
+		) {
 			Ok(value) => String::from(value),
-			Err(_) => String::new()
+			Err(_) => String::new(),
 		};
 		AppInfo {
 			thread: self.thread,
@@ -265,13 +300,14 @@ impl FlatAppInfo {
 			port: self.port,
 			flags: self.flags,
 			path: path,
-			signature: signature 
+			signature: signature,
 		}
 	}
-	
+
 	//Graciously borrowed from stackoverflow
 	fn str_from_array_with_or_without_nul(buf: &[u8]) -> result::Result<&str, Utf8Error> {
-		let len = buf.iter()
+		let len = buf
+			.iter()
 			.enumerate()
 			.find(|&(_, &byte)| byte == 0)
 			.map_or_else(|| buf.len(), |(len, _)| len);
@@ -298,13 +334,15 @@ impl Flattenable<FlatAppInfo> for FlatAppInfo {
 
 	fn unflatten(buffer: &[u8]) -> Result<FlatAppInfo> {
 		if mem::size_of::<FlatAppInfo>() != buffer.len() {
-			return Err(HaikuError::new(ErrorKind::InvalidData, "the buffer is smaller than the flattened app info struct"));
+			return Err(HaikuError::new(
+				ErrorKind::InvalidData,
+				"the buffer is smaller than the flattened app info struct",
+			));
 		}
 		let app_info: FlatAppInfo = unsafe { ptr::read(buffer.as_ptr() as *const _) };
 		Ok(app_info)
 	}
 }
-
 
 // Supporting constants for AppInfo
 //const B_SINGLE_LAUNCH: u32 = 0x0;
@@ -314,7 +352,6 @@ const B_EXCLUSIVE_LAUNCH: u32 = 0x2;
 const B_BACKGROUND_APP: u32 = 0x4;
 const B_ARGV_ONLY: u32 = 0x8;
 // B_APP_INFO_RESERVED1_ 0x10000000
-
 
 /// Contains the information about a running application
 ///
@@ -348,7 +385,7 @@ pub struct AppInfo {
 pub enum LaunchType {
 	SingleLaunch,
 	MultipleLaunch,
-	ExclusiveLaunch
+	ExclusiveLaunch,
 }
 
 impl AppInfo {
@@ -362,12 +399,12 @@ impl AppInfo {
 			LaunchType::SingleLaunch
 		}
 	}
-	
+
 	/// Determine if the application is a background application
 	pub fn is_background(&self) -> bool {
 		self.flags & B_BACKGROUND_APP != 0
 	}
-	
+
 	/// Determine if the application only allows command line arguments for
 	/// passing data, not messages.
 	pub fn is_argv_only(&self) -> bool {
@@ -375,13 +412,9 @@ impl AppInfo {
 	}
 }
 
-
 lazy_static! {
-	pub(crate) static ref LAUNCH_ROSTER: LaunchRoster = {
-		LaunchRoster::init()
-	};
+	pub(crate) static ref LAUNCH_ROSTER: LaunchRoster = { LaunchRoster::init() };
 }
-
 
 lazy_static! {
 	/// The `ROSTER` gives access to a global `Roster` object that can be used
@@ -397,7 +430,6 @@ lazy_static! {
 		Roster{ messenger: Messenger::from_port_id(port).unwrap() }
 	};
 }
-
 
 #[test]
 fn test_roster_get_app_list() {

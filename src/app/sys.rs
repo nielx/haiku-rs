@@ -10,17 +10,19 @@ use std::ffi::CStr;
 use std::mem;
 use std::path::PathBuf;
 
-use haiku_sys::{image_type, get_next_image_info, image_info, type_code, area_id, port_id, team_id};
 use haiku_sys::errors::B_OK;
+use haiku_sys::{
+	area_id, get_next_image_info, image_info, image_type, port_id, team_id, type_code,
+};
 use libc::c_char;
 
-use ::support::{ErrorKind, HaikuError, Result};
+use support::{ErrorKind, HaikuError, Result};
 
 // os/app/AppDefs.h
-pub const B_ARGV_RECEIVED: u32 = haiku_constant!('_','A','R','G');
-pub const B_READY_TO_RUN: u32 = haiku_constant!('_','R','T','R');
-pub const B_QUIT_REQUESTED: u32 = haiku_constant!('_','Q','R','Q');
-pub const QUIT: u32 = haiku_constant!('_','Q','I','T');
+pub const B_ARGV_RECEIVED: u32 = haiku_constant!('_', 'A', 'R', 'G');
+pub const B_READY_TO_RUN: u32 = haiku_constant!('_', 'R', 'T', 'R');
+pub const B_QUIT_REQUESTED: u32 = haiku_constant!('_', 'Q', 'R', 'Q');
+pub const QUIT: u32 = haiku_constant!('_', 'Q', 'I', 'T');
 
 // private/app/MessagePrivate.h
 pub const MESSAGE_FLAG_VALID: u32 = 0x0001;
@@ -36,7 +38,7 @@ pub const MESSAGE_FLAG_REPLY_AS_KMESSAGE: u32 = 0x0100;
 pub const FIELD_FLAG_VALID: u16 = 0x0001;
 pub const FIELD_FLAG_FIXED_SIZE: u16 = 0x0002;
 
-pub const MESSAGE_FORMAT_HAIKU: u32 = haiku_constant!('1','F','M','H');
+pub const MESSAGE_FORMAT_HAIKU: u32 = haiku_constant!('1', 'F', 'M', 'H');
 
 // private/app/TokenSpace.h
 pub const B_PREFERRED_TOKEN: i32 = -2;
@@ -54,7 +56,7 @@ pub struct field_header {
 	pub count: u32,
 	pub data_size: u32,
 	pub offset: u32,
-	pub next_field: i32
+	pub next_field: i32,
 }
 
 #[repr(C)]
@@ -63,19 +65,19 @@ pub struct message_header {
 	pub message_format: u32,
 	pub what: u32,
 	pub flags: u32,
-	
+
 	pub target: i32,
 	pub current_specifier: i32,
 	pub message_area: area_id,
-	
+
 	pub reply_port: port_id,
 	pub reply_target: i32,
 	pub reply_team: team_id,
-	
+
 	pub data_size: u32,
 	pub field_count: u32,
 	pub hash_table_size: u32,
-	pub hash_table: [i32; 5]
+	pub hash_table: [i32; 5],
 }
 
 // Helper functions
@@ -91,5 +93,8 @@ pub(crate) fn get_app_path(team: team_id) -> Result<PathBuf> {
 			}
 		}
 	}
-	Err(HaikuError::new(ErrorKind::NotFound, "Cannot find the app image"))
+	Err(HaikuError::new(
+		ErrorKind::NotFound,
+		"Cannot find the app image",
+	))
 }

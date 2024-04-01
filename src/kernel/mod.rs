@@ -11,17 +11,17 @@
 /// A port is a system-wide communication channel that can be used to copy
 /// data between threads and teams.
 ///
-/// Ports are the lower level transportation mechanism for Messages. 
+/// Ports are the lower level transportation mechanism for Messages.
 pub mod ports {
-	use libc::c_char;
 	use haiku_sys::*;
+	use libc::c_char;
 	use std::ffi::{CStr, CString};
 	use std::mem;
 	use std::time::Duration;
-	
+
 	use kernel::teams::Team;
 	use support::{ErrorKind, HaikuError, Result};
-	
+
 	/// The port object represents a Haiku port
 	///
 	/// There are two types of ports: there are owned ports, which means that
@@ -30,7 +30,7 @@ pub mod ports {
 	/// method. There are also borrowed ports. These are retrieved using
 	/// `Ports::find_port()`. These ports will outlive the lifetime of the
 	/// `Port` object.
-	/// 
+	///
 	/// In terms of usage safety, ports are very badly designed on Haiku. While
 	/// a port does have an owning team, this merely means the port is deleted
 	/// when the team is. It does not give any additional privileges. This
@@ -44,9 +44,9 @@ pub mod ports {
 	/// write to a port.
 	pub struct Port {
 		port: port_id,
-		owned: bool
+		owned: bool,
 	}
-	
+
 	/// Properties of the port
 	pub struct PortInfo {
 		/// Representation of the team that the port is part of
@@ -58,9 +58,9 @@ pub mod ports {
 		/// The number of items in the queue at the time of getting the info
 		pub queue_count: i32,
 		/// The total number of messages passed through this port
-		pub total_count: i32
+		pub total_count: i32,
 	}
-	
+
 	impl Port {
 		/// Create a new port and take ownership of it
 		///
@@ -70,7 +70,10 @@ pub mod ports {
 		/// port object.
 		pub fn create(name: &str, capacity: i32) -> Result<Port> {
 			if name.len() > B_OS_NAME_LENGTH {
-				return Err(HaikuError::new(ErrorKind::InvalidInput, "The name is too long"));
+				return Err(HaikuError::new(
+					ErrorKind::InvalidInput,
+					"The name is too long",
+				));
 			}
 			let c_name = CString::new(name).unwrap();
 			let port = unsafe { create_port(capacity, c_name.as_ptr()) };
@@ -79,11 +82,11 @@ pub mod ports {
 			} else {
 				Ok(Port {
 					port: port,
-					owned: true
+					owned: true,
 				})
 			}
 		}
-		
+
 		/// Find an existing port by name
 		///
 		/// If the port exists, this function will return a borrowed `Port`
@@ -94,15 +97,15 @@ pub mod ports {
 				// Or should we panic?
 				return None;
 			}
-			
+
 			let c_name = CString::new(name).unwrap();
 			let port = unsafe { find_port(c_name.as_ptr()) };
 			if port < 0 {
-				None 
+				None
 			} else {
 				Some(Port {
 					port: port,
-					owned: false
+					owned: false,
 				})
 			}
 		}
@@ -118,13 +121,11 @@ pub mod ports {
 				return None;
 			}
 			let mut info: port_info = unsafe { mem::zeroed() };
-			let status = unsafe {
-				get_port_info(id, &mut info)
-			};
+			let status = unsafe { get_port_info(id, &mut info) };
 			if status == 0 {
 				Some(Port {
 					port: id,
-					owned: false
+					owned: false,
 				})
 			} else {
 				None
@@ -136,10 +137,9 @@ pub mod ports {
 		/// The data is identified by a `type_code` and is sent as an array of
 		/// bytes. If the port has already reached its maximum capacity, this
 		/// operation will block until the message can be written.
-		pub fn write(&self, type_code: i32, data: &[u8]) -> Result<()>{
-			let status = unsafe { 
-				write_port(self.port, type_code, data.as_ptr(), data.len() as usize) 
-			};
+		pub fn write(&self, type_code: i32, data: &[u8]) -> Result<()> {
+			let status =
+				unsafe { write_port(self.port, type_code, data.as_ptr(), data.len() as usize) };
 			// TODO: replace with B_OK
 			if status == 0 {
 				Ok(())
@@ -147,7 +147,7 @@ pub mod ports {
 				Err(HaikuError::from_raw_os_error(status))
 			}
 		}
-		
+
 		/// Attempt to write data to the port
 		///
 		/// The data is identified by a `type_code` and is sent as an array of
@@ -155,13 +155,19 @@ pub mod ports {
 		/// operation will block until the message can be written, or until the
 		/// timeout is reached. Set the timeout to 0 if you want to return
 		/// immediately if the port is at capacity.
-		pub fn try_write(&self, type_code: i32, data: &[u8], timeout: Duration) -> Result<()>{
+		pub fn try_write(&self, type_code: i32, data: &[u8], timeout: Duration) -> Result<()> {
 			let timeout_ms = timeout.as_secs() as i64 * 1_000_000 + timeout.subsec_micros() as i64;
 			let status = unsafe {
-				write_port_etc(self.port, type_code, data.as_ptr(), data.len() as usize,
-								B_TIMEOUT, timeout_ms) 
+				write_port_etc(
+					self.port,
+					type_code,
+					data.as_ptr(),
+					data.len() as usize,
+					B_TIMEOUT,
+					timeout_ms,
+				)
 			};
-			
+
 			// TODO: replace with B_OK
 			if status == 0 {
 				Ok(())
@@ -169,15 +175,17 @@ pub mod ports {
 				Err(HaikuError::from_raw_os_error(status))
 			}
 		}
-		
+
 		/// Read data from a port
 		///
-		/// This method reads the next message from the port. The data is 
+		/// This method reads the next message from the port. The data is
 		/// returned as a tuple of a type code and a buffer. The method waits
 		/// until there is a next message.
 		pub fn read(&self) -> Result<(i32, Vec<u8>)> {
 			if !self.owned {
-				panic!("You are trying to read from a port that you do not own. This is not allowed");
+				panic!(
+					"You are trying to read from a port that you do not own. This is not allowed"
+				);
 			}
 			let size = unsafe { port_buffer_size(self.port) };
 			if size < 0 {
@@ -186,37 +194,37 @@ pub mod ports {
 			let mut dst = Vec::with_capacity(size as usize);
 			let pdst = dst.as_mut_ptr();
 			let mut type_code: i32 = 0;
-			let dst_len = unsafe { 
-				read_port(self.port, &mut type_code, pdst, size as usize)
-			};
-			
+			let dst_len = unsafe { read_port(self.port, &mut type_code, pdst, size as usize) };
+
 			if dst_len > 0 && dst_len != size {
 				panic!("read_port does not return data with the predicted size");
 			}
-			
+
 			if dst_len < 0 {
 				Err(HaikuError::from_raw_os_error(dst_len as i32))
 			} else {
-				unsafe { dst.set_len(dst_len as usize); };
+				unsafe {
+					dst.set_len(dst_len as usize);
+				};
 				Ok((type_code, dst))
 			}
 		}
-		
+
 		/// Attempt to read data from a port
 		///
-		/// This method reads the next message from the port. The data is 
+		/// This method reads the next message from the port. The data is
 		/// returned as a tuple of a type code and a buffer. The method waits
 		/// until there is a next message, or until when a timeout if reached.
 		/// If you don't want to wait for a message to come in, you can set the
 		/// timeout to 0
 		pub fn try_read(&self, timeout: Duration) -> Result<(i32, Vec<u8>)> {
 			if !self.owned {
-				panic!("You are trying to read from a port that you do not own. This is not allowed");
+				panic!(
+					"You are trying to read from a port that you do not own. This is not allowed"
+				);
 			}
 			let timeout_ms = timeout.as_secs() as i64 * 1_000_000 + timeout.subsec_micros() as i64;
-			let size = unsafe { 
-				port_buffer_size_etc(self.port, B_TIMEOUT, timeout_ms) 
-			};
+			let size = unsafe { port_buffer_size_etc(self.port, B_TIMEOUT, timeout_ms) };
 			if size < 0 {
 				return Err(HaikuError::from_raw_os_error(size as i32));
 			}
@@ -230,23 +238,30 @@ pub mod ports {
 				// However, there might be bad actors out there that are also
 				// listening to this port, so using the timeout again will
 				// prevent a lock when that's the case.
-				read_port_etc(self.port, &mut type_code, pdst, size as usize,
-				              B_TIMEOUT, timeout_ms)
+				read_port_etc(
+					self.port,
+					&mut type_code,
+					pdst,
+					size as usize,
+					B_TIMEOUT,
+					timeout_ms,
+				)
 			};
-			
+
 			if dst_len > 0 && dst_len != size {
 				panic!("read_port does not return data with the predicted size");
 			}
-			
+
 			if dst_len < 0 {
 				Err(HaikuError::from_raw_os_error(dst_len as i32))
 			} else {
-				unsafe { dst.set_len(dst_len as usize); };
+				unsafe {
+					dst.set_len(dst_len as usize);
+				};
 				Ok((type_code, dst))
 			}
 		}
-		
-		
+
 		/// Close a port
 		///
 		/// When a port is closed, data can no longer be written to it. The
@@ -264,45 +279,39 @@ pub mod ports {
 				Err(HaikuError::from_raw_os_error(status))
 			}
 		}
-		
+
 		/// Get the port count
 		///
 		/// This returns the number of items that are waiting to be processed.
 		pub fn get_count(&self) -> Result<usize> {
-			let status = unsafe {
-				port_count(self.port)
-			};
+			let status = unsafe { port_count(self.port) };
 			if status < 0 {
 				Err(HaikuError::from_raw_os_error(status as i32))
 			} else {
 				Ok(status as usize)
 			}
 		}
-		
+
 		/// Get the port info
 		pub fn get_info(&self) -> Result<PortInfo> {
 			let mut info: port_info = unsafe { mem::zeroed() };
-			let status = unsafe {
-				get_port_info(self.port, &mut info)
-			};
+			let status = unsafe { get_port_info(self.port, &mut info) };
 			if status != 0 {
 				Err(HaikuError::from_raw_os_error(status))
 			} else {
-				let c_name = unsafe {
-					CStr::from_ptr((&info.name) as *const c_char)
-				};
-				Ok(PortInfo{
+				let c_name = unsafe { CStr::from_ptr((&info.name) as *const c_char) };
+				Ok(PortInfo {
 					team: Team::from(info.team).unwrap(),
 					name: String::from(c_name.to_str().unwrap()),
 					capacity: info.capacity,
 					queue_count: info.queue_count,
-					total_count: info.total_count
+					total_count: info.total_count,
 				})
 			}
 		}
-		
+
 		/// Get the underlying port id
-		pub fn get_port_id(&self) -> port_id{
+		pub fn get_port_id(&self) -> port_id {
 			self.port
 		}
 	}
@@ -315,38 +324,42 @@ pub mod ports {
 		/// Port will outlive any of its clones, if you want to keep using any
 		/// clones.
 		fn clone(&self) -> Self {
-			Port { port: self.port, owned: false }
+			Port {
+				port: self.port,
+				owned: false,
+			}
 		}
-	} 
+	}
 
 	impl Drop for Port {
 		fn drop(&mut self) {
 			if self.owned {
-				unsafe { delete_port(self.port); };
+				unsafe {
+					delete_port(self.port);
+				};
 			}
 		}
 	}
 }
-
 
 /// A team is a unique process that is running on Haiku
 pub mod teams {
 	use haiku_sys::*;
 	/// This struct is a representation of a team
 	pub struct Team {
-		id: team_id
+		id: team_id,
 	}
-	
+
 	impl Team {
 		/// Build a team object from a raw team id
 		pub fn from(id: team_id) -> Option<Team> {
 			if id < 0 {
 				None
 			} else {
-				Some(Team{ id })
+				Some(Team { id })
 			}
 		}
-		
+
 		/// Get the raw team identifier
 		pub fn get_team_id(&self) -> team_id {
 			self.id
@@ -362,17 +375,27 @@ pub const INFINITE_TIMEOUT: Duration = Duration::from_micros(i64::max_value() as
 pub(crate) mod helpers {
 	use std::ffi::CStr;
 	use std::str;
-	
+
 	use haiku_sys::*;
-	use libc::{c_char, dev_t, ino_t, size_t}; 
-	
-	use support::{Result, HaikuError};
-	
-	pub(crate) fn get_path_for_entry_ref(device: dev_t, dir: ino_t, leaf: *const c_char) -> Result<String> {
-		extern {
-			pub fn _kern_entry_ref_to_path(device: dev_t, inode: ino_t, leaf: *const c_char, buf: *mut c_char, bufferSize: size_t) -> status_t;
+	use libc::{c_char, dev_t, ino_t, size_t};
+
+	use support::{HaikuError, Result};
+
+	pub(crate) fn get_path_for_entry_ref(
+		device: dev_t,
+		dir: ino_t,
+		leaf: *const c_char,
+	) -> Result<String> {
+		extern "C" {
+			pub fn _kern_entry_ref_to_path(
+				device: dev_t,
+				inode: ino_t,
+				leaf: *const c_char,
+				buf: *mut c_char,
+				bufferSize: size_t,
+			) -> status_t;
 		}
-		
+
 		let mut buf = [0 as c_char; B_PATH_NAME_LENGTH];
 		let p = buf.as_mut_ptr();
 		let path = unsafe {
@@ -380,9 +403,11 @@ pub(crate) mod helpers {
 			if result != 0 {
 				return Err(HaikuError::from_raw_os_error(result));
 			}
-			
+
 			let p = p as *const _;
-			str::from_utf8(CStr::from_ptr(p).to_bytes()).unwrap().to_owned()
+			str::from_utf8(CStr::from_ptr(p).to_bytes())
+				.unwrap()
+				.to_owned()
 		};
 		Ok(path)
 	}
@@ -390,22 +415,21 @@ pub(crate) mod helpers {
 
 /// Pause execution of the application and open the Debugger
 ///
-/// You can show the `message` to the user when the debugger opens.			
+/// You can show the `message` to the user when the debugger opens.
 pub fn debugger(message: &str) {
 	use libc::c_char;
 	use std::ffi::CString;
-	extern {
+	extern "C" {
 		fn debugger(message: *const c_char);
 	}
 	let msg = CString::new(message).unwrap();
 	unsafe { debugger(msg.as_ptr()) };
 }
 
-
 #[test]
 fn test_basic_port() {
 	use kernel::ports::Port;
-	
+
 	let port = Port::create("test_basic_port", 16).unwrap();
 	let port_data = b"testdata for port\n";
 	let port_code: i32 = 47483658;
@@ -422,9 +446,9 @@ fn test_basic_port() {
 fn test_port_with_timeout() {
 	use kernel::ports::Port;
 	use std::time::Duration;
-	
+
 	let port = Port::create("timeout_port", 1).unwrap();
-	assert!(port.try_read(Duration::new(5,0)).is_err());
+	assert!(port.try_read(Duration::new(5, 0)).is_err());
 }
 
 #[test]

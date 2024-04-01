@@ -3,12 +3,12 @@
 // All rights reserved. Distributed under the terms of the MIT License.
 //
 
-use std::{error, fmt, result, str};
 use std::ffi::CStr;
+use std::{error, fmt, result, str};
 
-use haiku_sys::status_t;
 use haiku_sys::errors::*;
-use libc::{c_int, c_char, size_t};
+use haiku_sys::status_t;
+use libc::{c_char, c_int, size_t};
 
 /// This is a shortened version for a standard Rust result that returns a
 /// Haiku error.
@@ -20,7 +20,7 @@ pub type Result<T> = result::Result<T, HaikuError>;
 /// This struct represents an Error for using this API
 ///
 /// The error is very much based on the standard library's `std::io::Error`,
-/// and roughly has the same usage and functionality. 
+/// and roughly has the same usage and functionality.
 pub struct HaikuError {
 	repr: Repr,
 }
@@ -31,16 +31,16 @@ impl fmt::Debug for HaikuError {
 	}
 }
 
-enum Repr{
+enum Repr {
 	Os(status_t),
 	Simple(ErrorKind),
-	Custom(Box<Custom>)
+	Custom(Box<Custom>),
 }
 
 #[derive(Debug)]
 struct Custom {
 	kind: ErrorKind,
-	error: Box<dyn error::Error+Send+Sync>,
+	error: Box<dyn error::Error + Send + Sync>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -93,7 +93,7 @@ impl From<ErrorKind> for HaikuError {
 	/// This is a shortcut to create a simple error based on an `ErrorKind`.
 	fn from(kind: ErrorKind) -> HaikuError {
 		HaikuError {
-			repr: Repr::Simple(kind)
+			repr: Repr::Simple(kind),
 		}
 	}
 }
@@ -103,18 +103,15 @@ impl HaikuError {
 	/// common use is to attach a `String` that describes the error, but any
 	/// struct that implements the `std::error::Error` trait will work.
 	pub fn new<E>(kind: ErrorKind, error: E) -> HaikuError
-		where E: Into<Box<dyn error::Error+Send+Sync>>
+	where
+		E: Into<Box<dyn error::Error + Send + Sync>>,
 	{
 		Self::_new(kind, error.into())
 	}
 
-	fn _new(kind: ErrorKind, error: Box<dyn error::Error+Send+Sync>) -> HaikuError
-	{
+	fn _new(kind: ErrorKind, error: Box<dyn error::Error + Send + Sync>) -> HaikuError {
 		HaikuError {
-			repr: Repr::Custom(Box::new(Custom {
-				kind,
-				error,
-			}))
+			repr: Repr::Custom(Box::new(Custom { kind, error })),
 		}
 	}
 
@@ -124,7 +121,7 @@ impl HaikuError {
 	/// that set the global error number on failure.
 	pub fn last_os_error() -> HaikuError {
 		// Get the last OS Error
-		extern {
+		extern "C" {
 			fn _errnop() -> *mut c_int;
 		}
 		let error = unsafe { *_errnop() as i32 };
@@ -133,7 +130,9 @@ impl HaikuError {
 
 	/// Convert a raw error constant to a `HaikuError` object
 	pub fn from_raw_os_error(code: status_t) -> HaikuError {
-		HaikuError { repr: Repr::Os(code) }
+		HaikuError {
+			repr: Repr::Os(code),
+		}
 	}
 
 	/// Convert the current error into a (lower level) Haiku error constant
@@ -141,7 +140,7 @@ impl HaikuError {
 		match self.repr {
 			Repr::Os(i) => Some(i),
 			Repr::Simple(..) => None,
-			Repr::Custom(_) => None
+			Repr::Custom(_) => None,
 		}
 	}
 
@@ -150,7 +149,7 @@ impl HaikuError {
 		match self.repr {
 			Repr::Os(e) => decode_error_kind(e),
 			Repr::Simple(e) => e,
-			Repr::Custom(ref e) => e.kind
+			Repr::Custom(ref e) => e.kind,
 		}
 	}
 }
@@ -158,11 +157,12 @@ impl HaikuError {
 impl fmt::Debug for Repr {
 	fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
 		match *self {
-			Repr::Os(code) => 
-				fmt.debug_struct("Os")
-					.field("code", &code)
-					.field("kind", &ErrorKind::Other)
-					.field("message", &"message").finish(),
+			Repr::Os(code) => fmt
+				.debug_struct("Os")
+				.field("code", &code)
+				.field("kind", &ErrorKind::Other)
+				.field("message", &"message")
+				.finish(),
 			Repr::Simple(kind) => fmt.debug_tuple("Kind").field(&kind).finish(),
 			Repr::Custom(ref c) => fmt::Debug::fmt(&c, fmt),
 		}
@@ -190,21 +190,22 @@ impl error::Error for HaikuError {
 
 // Shamelessly taken from libstd/sys/unix/os.rs
 fn error_string(errno: status_t) -> String {
-	extern {
-		fn strerror_r(errnum: c_int, buf: *mut c_char,
-		              buflen: size_t) -> c_int;
+	extern "C" {
+		fn strerror_r(errnum: c_int, buf: *mut c_char, buflen: size_t) -> c_int;
 	}
-	
+
 	let mut buf = [0 as c_char; 128];
-	
+
 	let p = buf.as_mut_ptr();
 	unsafe {
 		if strerror_r(errno as c_int, p, buf.len()) < 0 {
 			panic!("strerror_r failure");
 		}
-		
+
 		let p = p as *const _;
-		str::from_utf8(CStr::from_ptr(p).to_bytes()).unwrap().to_owned()
+		str::from_utf8(CStr::from_ptr(p).to_bytes())
+			.unwrap()
+			.to_owned()
 	}
 }
 
@@ -221,6 +222,6 @@ fn decode_error_kind(errno: status_t) -> ErrorKind {
 		B_DONT_DO_THAT => ErrorKind::InvalidInput,
 		B_NOT_ALLOWED => ErrorKind::NotAllowed,
 		B_TIMED_OUT => ErrorKind::TimedOut,
-		_ => ErrorKind::Other
+		_ => ErrorKind::Other,
 	}
 }

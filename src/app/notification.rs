@@ -6,12 +6,12 @@
 use std::path::Path;
 use std::time::Duration;
 
-use ::app::application::get_current_team_and_thread;
-use ::app::{Message, Messenger, ROSTER};
-use ::kernel::teams::Team;
-use ::support::Result;
+use app::application::get_current_team_and_thread;
+use app::{Message, Messenger, ROSTER};
+use kernel::teams::Team;
+use support::Result;
 
-const NOTIFICATION_MESSAGE: u32 = haiku_constant!('n','s','s','m');
+const NOTIFICATION_MESSAGE: u32 = haiku_constant!('n', 's', 's', 'm');
 const NOTIFICATION_SERVER_SIGNATURE: &str = "application/x-vnd.Haiku-notification_server";
 
 #[derive(PartialEq)]
@@ -36,7 +36,7 @@ pub enum NotificationType {
 	/// Progress notification
 	///
 	/// This type of notification includes a progress bar.
-	Progress
+	Progress,
 }
 
 /// Notification for Haiku's notification system.
@@ -61,7 +61,7 @@ pub enum NotificationType {
 /// 	progress: 0.5,
 /// 	.. Default::default()
 /// };
-/// 
+///
 /// notification.send(&reply_to_messenger, Some(Duration::new(5, 0)));
 /// ```
 pub struct Notification {
@@ -70,7 +70,7 @@ pub struct Notification {
 	/// This is `NotificationType::Information` by default.
 	pub notification_type: NotificationType,
 
-	/// The name of a group 
+	/// The name of a group
 	///
 	/// The notification system will position notifications that share the
 	/// same group name.
@@ -98,7 +98,6 @@ pub struct Notification {
 	/// 1.0 being set.
 	pub progress: f32,
 
-
 	// TODO: onclick_app: Option<String>,
 	// TODO: onclick_file: entry_ref,
 	// TODO: onclick_refs: Vec<entry_ref>,
@@ -108,15 +107,16 @@ pub struct Notification {
 	source_name: String,
 }
 
-
 impl Default for Notification {
 	fn default() -> Self {
 		// get app info
 		let (team, _) = get_current_team_and_thread();
-		let info = ROSTER.get_running_app_info(&Team::from(team).unwrap()).unwrap();
+		let info = ROSTER
+			.get_running_app_info(&Team::from(team).unwrap())
+			.unwrap();
 		let filename = match Path::new(&info.path).file_name() {
 			Some(file) => String::from(file.to_str().unwrap()),
-			None => String::new()
+			None => String::new(),
 		};
 
 		Notification {
@@ -137,35 +137,44 @@ impl Default for Notification {
 	}
 }
 
-
 impl Notification {
 	fn to_message(&self) -> Result<Message> {
 		let mut message = Message::new(NOTIFICATION_MESSAGE);
 		message.add_data("_appname", &self.source_name).unwrap();
-		message.add_data("_signature", &self.source_signature).unwrap();
+		message
+			.add_data("_signature", &self.source_signature)
+			.unwrap();
 		let type_: i32 = match &self.notification_type {
 			NotificationType::Information => 0,
 			NotificationType::Important => 1,
 			NotificationType::Error => 2,
-			NotificationType::Progress => 3
+			NotificationType::Progress => 3,
 		};
 		message.add_data("_type", &type_).unwrap();
-		self.group.as_ref().map(|group| message.add_data("_group", group).unwrap());
-		self.title.as_ref().map(|title| message.add_data("_title", title).unwrap());
-		self.content.as_ref().map(|content| message.add_data("_content", content).unwrap());
-		self.id.as_ref().map(|id| message.add_data("_messageID", id).unwrap());
+		self.group
+			.as_ref()
+			.map(|group| message.add_data("_group", group).unwrap());
+		self.title
+			.as_ref()
+			.map(|title| message.add_data("_title", title).unwrap());
+		self.content
+			.as_ref()
+			.map(|content| message.add_data("_content", content).unwrap());
+		self.id
+			.as_ref()
+			.map(|id| message.add_data("_messageID", id).unwrap());
 		if self.notification_type == NotificationType::Progress {
 			message.add_data("_progress", &self.progress).unwrap();
 		}
 
 		if self.notification_type == NotificationType::Progress {
 			let progress = if self.progress < 0.0 {
-					0.0
-				} else if self.progress > 1.0 {
-					1.0
-				} else {
-					self.progress
-				};
+				0.0
+			} else if self.progress > 1.0 {
+				1.0
+			} else {
+				self.progress
+			};
 			message.add_data("_progress", &progress).unwrap();
 		}
 		// TODO: message.add_data("_onClickApp"
@@ -188,7 +197,7 @@ impl Notification {
 		let mut message = self.to_message()?;
 		let timeout_ms: i64 = match duration {
 			Some(d) => d.as_secs() as i64 * 1_000_000 + d.subsec_micros() as i64,
-			None => 0
+			None => 0,
 		};
 		if timeout_ms > 0 {
 			message.add_data("timeout", &timeout_ms).unwrap();
@@ -201,16 +210,16 @@ impl Notification {
 
 #[cfg(test)]
 mod tests {
-	use app::{Application, ApplicationDelegate, ApplicationHooks};
 	use super::*;
+	use app::{Application, ApplicationDelegate, ApplicationHooks};
 
-	struct MockApplicationState { }
+	struct MockApplicationState {}
 	impl ApplicationHooks for MockApplicationState {
 		fn ready_to_run(&mut self, application: &ApplicationDelegate) {
 			let notification = Notification {
-				title: Some(String::from("Information")), 
+				title: Some(String::from("Information")),
 				content: Some(String::from("This notification comes from Rust")),
-				.. Default::default()
+				..Default::default()
 			};
 			notification.send(&application.messenger, None).unwrap();
 			application.quit();

@@ -6,20 +6,22 @@
 use std::collections::{HashMap, VecDeque};
 use std::env::args;
 use std::mem;
-use std::sync::{Arc, Mutex, atomic};
+use std::sync::{atomic, Arc, Mutex};
 
-use haiku_sys::{thread_info, thread_id, find_thread, get_thread_info, port_id, team_id};
+use haiku_sys::{find_thread, get_thread_info, port_id, team_id, thread_id, thread_info};
 
-use ::app::{Handler, Message, Messenger};
-use ::app::looper::{HandlerType, Looper, LooperDelegate, NEXT_HANDLER_TOKEN};
-use ::app::roster::{ROSTER, ApplicationRegistrationStatus};
-use ::app::serverlink::{ServerLink, server_protocol};
-use ::app::sys::{B_ARGV_RECEIVED, B_READY_TO_RUN, B_QUIT_REQUESTED, QUIT, B_PREFERRED_TOKEN, get_app_path};
-use ::kernel::INFINITE_TIMEOUT;
-use ::kernel::ports::Port;
-use ::storage::MimeType;
-use ::storage::sys::entry_ref;
-use ::support::Result;
+use app::looper::{HandlerType, Looper, LooperDelegate, NEXT_HANDLER_TOKEN};
+use app::roster::{ApplicationRegistrationStatus, ROSTER};
+use app::serverlink::{server_protocol, ServerLink};
+use app::sys::{
+	get_app_path, B_ARGV_RECEIVED, B_PREFERRED_TOKEN, B_QUIT_REQUESTED, B_READY_TO_RUN, QUIT,
+};
+use app::{Handler, Message, Messenger};
+use kernel::ports::Port;
+use kernel::INFINITE_TIMEOUT;
+use storage::sys::entry_ref;
+use storage::MimeType;
+use support::Result;
 
 const LOOPER_PORT_DEFAULT_CAPACITY: i32 = 200;
 
@@ -28,19 +30,25 @@ const LOOPER_PORT_DEFAULT_CAPACITY: i32 = 200;
 /// Each Haiku application will create one Application instance. The function
 /// of this object is to connect to all the various servers that provide
 /// functionality and integration on Haiku. As a programmer, you use the object
-/// to set up your internal application. 
+/// to set up your internal application.
 ///
 /// In general, you create a new application using the `new()` function. You
 /// then set up additional loopers using the `create_looper()` function, and
 /// when you are ready, you call the `run()` function to start the message
-/// loop. Control is returned to you when the message loop is quit. 
-pub struct Application<A> where A: ApplicationHooks + Send + 'static {
+/// loop. Control is returned to you when the message loop is quit.
+pub struct Application<A>
+where
+	A: ApplicationHooks + Send + 'static,
+{
 	state: Arc<Mutex<A>>,
 	inner_looper: Looper<A>,
-	link: ServerLink
+	link: ServerLink,
 }
 
-impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
+impl<A> Application<A>
+where
+	A: ApplicationHooks + Send + 'static,
+{
 	/// Create a new application object
 	///
 	/// This constructor will create a new application object. The required
@@ -55,18 +63,21 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 	/// passed as arguments to the message processors.
 	pub fn new(signature: &str, initial_state: A) -> Self {
 		// Check the signature
-		let mime_type =  match MimeType::new(signature) {
+		let mime_type = match MimeType::new(signature) {
 			Some(t) => t,
-			None => panic!("Invalid MimeType")
+			None => panic!("Invalid MimeType"),
 		};
 
-		if mime_type.is_supertype_only() || (mime_type.get_supertype() != MimeType::new("application").unwrap()) {
+		if mime_type.is_supertype_only()
+			|| (mime_type.get_supertype() != MimeType::new("application").unwrap())
+		{
 			panic!("Invalid MimeType");
 		}
 
 		// Get an entry_ref for this path
 		let path = get_app_path(0).expect("Cannot get the path for this executable");
-		let entry = entry_ref::from_path(&path).expect("Cannot get the entry_ref for this executable");
+		let entry =
+			entry_ref::from_path(&path).expect("Cannot get the entry_ref for this executable");
 
 		// To do: see if the application file has any attributes set
 		let app_flags: u32 = 1; //B_MULTIPLE_LAUNCH as B_REG_DEFAULT_APP_FLAGS
@@ -76,28 +87,43 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 		let (team, thread) = get_current_team_and_thread();
 		let registration = match ROSTER.is_application_registered(&entry, team, 0) {
 			Ok(r) => r,
-			Err(_) => panic!("Error communicating with the registrar about the registration status")
+			Err(_) => {
+				panic!("Error communicating with the registrar about the registration status")
+			}
 		};
 		match registration {
 			ApplicationRegistrationStatus::Registered(_) => (), //Ignored by the C++ implementation as well
-			ApplicationRegistrationStatus::PreRegistered(_) => panic!("Pre registered applications are not implemented"),
+			ApplicationRegistrationStatus::PreRegistered(_) => {
+				panic!("Pre registered applications are not implemented")
+			}
 			ApplicationRegistrationStatus::NotRegistered => (), //Ignored, now register
 		};
-		
-		match ROSTER.add_application(&String::from(signature), &entry, app_flags,
-			team, thread, port.get_port_id(), true) {
-				Ok(_) => (),
-				Err(_) => panic!("Error registering with the registrar")
+
+		match ROSTER.add_application(
+			&String::from(signature),
+			&entry,
+			app_flags,
+			team,
+			thread,
+			port.get_port_id(),
+			true,
+		) {
+			Ok(_) => (),
+			Err(_) => panic!("Error registering with the registrar"),
 		};
 
 		// Set up some defaults
 		let state = Arc::new(Mutex::new(initial_state));
-		let default_looper_state = Box::new(ApplicationLooperState{});
+		let default_looper_state = Box::new(ApplicationLooperState {});
 		let context = Context {
 			handler_messenger: Messenger::from_port(&port).unwrap(),
-			looper: LooperDelegate{ messenger: Messenger::from_port(&port).unwrap() },
-			application: ApplicationDelegate{ messenger: Messenger::from_port(&port).unwrap() },
-			application_state: state.clone()
+			looper: LooperDelegate {
+				messenger: Messenger::from_port(&port).unwrap(),
+			},
+			application: ApplicationDelegate {
+				messenger: Messenger::from_port(&port).unwrap(),
+			},
+			application_state: state.clone(),
 		};
 		let mut handlers = HashMap::new();
 		let handler_token = NEXT_HANDLER_TOKEN.fetch_add(1, atomic::Ordering::Relaxed);
@@ -110,7 +136,7 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 			preferred_handler: handler_token,
 			context: context,
 			state: default_looper_state,
-			terminating: false
+			terminating: false,
 		};
 
 		// Add the ARGV_RECEIVED message to the queue
@@ -132,9 +158,15 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 		//       3) team_id - the team id for this application
 		//       4) i32 - the handler ID token of this app
 		//       5) &str - signature of this app
-		link.sender.start_message(server_protocol::AS_CREATE_APP, 0).unwrap();
-		link.sender.attach(&link.receiver.port.get_port_id()).unwrap();
-		link.sender.attach(&inner_looper.port.get_port_id()).unwrap();
+		link.sender
+			.start_message(server_protocol::AS_CREATE_APP, 0)
+			.unwrap();
+		link.sender
+			.attach(&link.receiver.port.get_port_id())
+			.unwrap();
+		link.sender
+			.attach(&inner_looper.port.get_port_id())
+			.unwrap();
 		link.sender.attach(&team).unwrap();
 		link.sender.attach(&handler_token).unwrap();
 		link.sender.attach_string(signature).unwrap();
@@ -151,7 +183,7 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 		Self {
 			state: state,
 			inner_looper: inner_looper,
-			link: link
+			link: link,
 		}
 	}
 
@@ -165,17 +197,24 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 	/// The created loopers will not automatically start running; instead they
 	/// will be in a suspended state. See the Looper documentation on how to
 	/// start running them.
-	pub fn create_looper(&mut self, name: &str, initial_state: Box<dyn Handler<A> + Send>) -> Looper<A>
-	{
+	pub fn create_looper(
+		&mut self,
+		name: &str,
+		initial_state: Box<dyn Handler<A> + Send>,
+	) -> Looper<A> {
 		let port = Port::create(name, LOOPER_PORT_DEFAULT_CAPACITY).unwrap();
 		let mut handlers = HashMap::new();
 		let token = NEXT_HANDLER_TOKEN.fetch_add(1, atomic::Ordering::Relaxed);
 		handlers.insert(token, HandlerType::LooperState);
 		let context = Context {
 			handler_messenger: Messenger::from_port(&port).unwrap(),
-			looper: LooperDelegate{ messenger: Messenger::from_port(&port).unwrap() },
-			application: ApplicationDelegate{ messenger: self.inner_looper.get_messenger() },
-			application_state: self.state.clone()
+			looper: LooperDelegate {
+				messenger: Messenger::from_port(&port).unwrap(),
+			},
+			application: ApplicationDelegate {
+				messenger: self.inner_looper.get_messenger(),
+			},
+			application_state: self.state.clone(),
 		};
 		Looper {
 			name: String::from(name),
@@ -185,7 +224,7 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 			preferred_handler: token,
 			context: context,
 			state: initial_state,
-			terminating: false
+			terminating: false,
 		}
 	}
 
@@ -210,14 +249,20 @@ impl<A> Application<A> where A: ApplicationHooks + Send + 'static {
 	}
 }
 
-impl<A> Drop for Application<A> where A: ApplicationHooks + Send + 'static {
+impl<A> Drop for Application<A>
+where
+	A: ApplicationHooks + Send + 'static,
+{
 	fn drop(&mut self) {
 		// Unregister from Registrar
 		let (team, _) = get_current_team_and_thread();
 		let _ = ROSTER.remove_application(team);
 
 		// Unregister from the app_server
-		self.link.sender.start_message(B_QUIT_REQUESTED as i32, 0).unwrap();
+		self.link
+			.sender
+			.start_message(B_QUIT_REQUESTED as i32, 0)
+			.unwrap();
 		self.link.sender.flush(false).unwrap();
 	}
 }
@@ -225,7 +270,7 @@ impl<A> Drop for Application<A> where A: ApplicationHooks + Send + 'static {
 /// Interact with the application object
 pub struct ApplicationDelegate {
 	/// A messenger that targets the preferred handler of the application.
-	pub messenger: Messenger
+	pub messenger: Messenger,
 }
 
 impl ApplicationDelegate {
@@ -252,7 +297,10 @@ impl ApplicationDelegate {
 /// to certain destinations, or to use as reply addresses while sending
 /// messages. Additionally, the Context gives access to the current
 /// application state.
-pub struct Context<A> where A: Send {
+pub struct Context<A>
+where
+	A: Send,
+{
 	/// The messenger to the current Handler
 	///
 	/// This Messenger is most useful as a reply address for any messages you
@@ -307,8 +355,7 @@ pub trait ApplicationHooks {
 	/// This hook is called when the message loop starts running. It is
 	/// guaranteed to be the second hook called, after the `argv_received()`
 	/// hook.
-	fn ready_to_run(&mut self, _application: &ApplicationDelegate) {
-	}
+	fn ready_to_run(&mut self, _application: &ApplicationDelegate) {}
 
 	/// Called when a message is received
 	///
@@ -324,8 +371,7 @@ pub trait ApplicationHooks {
 	/// is running the relevant message loop. Additionally, you don't need
 	/// access to the mutex-protected application state, since this is already
 	/// available as the `self` argument.
-	fn message_received(&mut self, _application: &ApplicationDelegate, _message: &Message) {
-	}
+	fn message_received(&mut self, _application: &ApplicationDelegate, _message: &Message) {}
 
 	/// Called when your application receives arguments
 	///
@@ -336,14 +382,14 @@ pub trait ApplicationHooks {
 	/// Additionally, this hook may be called when you set your application as
 	/// Single Launch, and the user tried to launch another instance. In that
 	/// case the arguments will be sent to this instance.
-	fn argv_received(&mut self, _application: &ApplicationDelegate, _argv: Vec<String>) {
-	}
+	fn argv_received(&mut self, _application: &ApplicationDelegate, _argv: Vec<String>) {}
 }
 
 struct ApplicationLooperState {}
 
-impl<A> Handler<A> for ApplicationLooperState 
-	where A: ApplicationHooks + Send + 'static 
+impl<A> Handler<A> for ApplicationLooperState
+where
+	A: ApplicationHooks + Send + 'static,
 {
 	fn message_received(&mut self, context: &Context<A>, message: &Message) {
 		let mut application_state = context.application_state.lock().unwrap();
@@ -354,9 +400,9 @@ impl<A> Handler<A> for ApplicationLooperState
 				if argv.len() > 0 {
 					application_state.argv_received(&context.application, argv);
 				}
-			},
+			}
 			B_READY_TO_RUN => application_state.ready_to_run(&context.application),
-			_ => application_state.message_received(&context.application, message)
+			_ => application_state.message_received(&context.application, message),
 		}
 	}
 }
@@ -374,14 +420,13 @@ fn parse_argv(message: &Message) -> Vec<String> {
 		for i in 0.. {
 			let arg = match message.find_data::<String>("argv", i) {
 				Ok(arg) => arg,
-				Err(_) => break
+				Err(_) => break,
 			};
 			argv.push(arg);
 		}
 	}
 	argv
 }
-		
 
 /// Get the current team id and thread id
 // TODO: some caching
@@ -397,20 +442,19 @@ pub(crate) fn get_current_team_and_thread() -> (team_id, thread_id) {
 	(team, thread)
 }
 
-
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use app::{Message};
 	use app::sys::QUIT;
-	
-	const ADD_TO_COUNTER: u32 = haiku_constant!('C','O','+','+');
-	const INFORM_APP_ABOUT_COUNTER: u32 = haiku_constant!('I','A','A','C');
-	
+	use app::Message;
+
+	const ADD_TO_COUNTER: u32 = haiku_constant!('C', 'O', '+', '+');
+	const INFORM_APP_ABOUT_COUNTER: u32 = haiku_constant!('I', 'A', 'A', 'C');
+
 	struct CountLooperState {
-		count: u32
+		count: u32,
 	}
-	
+
 	impl Handler<ApplicationState> for CountLooperState {
 		fn message_received(&mut self, context: &Context<ApplicationState>, message: &Message) {
 			match message.what() {
@@ -418,22 +462,26 @@ mod tests {
 					self.count += 1;
 					let mut response = Message::new(INFORM_APP_ABOUT_COUNTER);
 					response.add_data("count", &self.count).unwrap();
-					context.application.messenger.send_and_ask_reply(response, &context.looper.messenger).unwrap();
-				},
+					context
+						.application
+						.messenger
+						.send_and_ask_reply(response, &context.looper.messenger)
+						.unwrap();
+				}
 				_ => panic!("We are not supposed to receive messages other than ADD_TO_COUNTER"),
 			}
 		}
 	}
-	
+
 	struct ApplicationState {
-		total_count: u32
+		total_count: u32,
 	}
-	
+
 	impl ApplicationHooks for ApplicationState {
 		fn ready_to_run(&mut self, _application: &ApplicationDelegate) {
 			println!("ready_to_run()");
 		}
-		
+
 		fn message_received(&mut self, application: &ApplicationDelegate, message: &Message) {
 			match message.what() {
 				INFORM_APP_ABOUT_COUNTER => {
@@ -445,25 +493,27 @@ mod tests {
 						// TODO:  We should not be using QUIT here, this is an internal detail
 						//        In general, it should be resolved how we do inter-looper
 						//        management
-						messenger.send_and_ask_reply(Message::new(QUIT), &messenger).unwrap();
+						messenger
+							.send_and_ask_reply(Message::new(QUIT), &messenger)
+							.unwrap();
 					}
 					println!("total count: {}", self.total_count);
-				},
-				_ => println!("application: {}", message.what())
+				}
+				_ => println!("application: {}", message.what()),
 			}
-			
+
 			// Check if we are done now
 			if self.total_count == 4 {
 				application.quit();
 			}
 		}
 	}
-	
+
 	#[test]
 	fn looper_test() {
-		let looper_state_1 = Box::new(CountLooperState{ count: 0 });
-		let looper_state_2 = Box::new(CountLooperState{ count: 0 });
-		let application_state = ApplicationState{ total_count: 0 };
+		let looper_state_1 = Box::new(CountLooperState { count: 0 });
+		let looper_state_2 = Box::new(CountLooperState { count: 0 });
+		let application_state = ApplicationState { total_count: 0 };
 
 		let mut application = Application::new("application/looper_test", application_state);
 
@@ -473,18 +523,26 @@ mod tests {
 		let messenger_2 = looper_2.get_messenger();
 		assert!(looper_1.run().is_ok());
 		assert!(looper_2.run().is_ok());
-		
+
 		// Create four count messages, two for each counter
 		let app_messenger = application.get_messenger();
 		let message = Message::new(ADD_TO_COUNTER);
-		messenger_1.send_and_ask_reply(message, &app_messenger).unwrap();
+		messenger_1
+			.send_and_ask_reply(message, &app_messenger)
+			.unwrap();
 		let message = Message::new(ADD_TO_COUNTER);
-		messenger_2.send_and_ask_reply(message, &app_messenger).unwrap();
+		messenger_2
+			.send_and_ask_reply(message, &app_messenger)
+			.unwrap();
 		let message = Message::new(ADD_TO_COUNTER);
-		messenger_1.send_and_ask_reply(message, &app_messenger).unwrap();
+		messenger_1
+			.send_and_ask_reply(message, &app_messenger)
+			.unwrap();
 		let message = Message::new(ADD_TO_COUNTER);
-		messenger_2.send_and_ask_reply(message, &app_messenger).unwrap();
+		messenger_2
+			.send_and_ask_reply(message, &app_messenger)
+			.unwrap();
 
-		application.run().unwrap(); 
+		application.run().unwrap();
 	}
 }

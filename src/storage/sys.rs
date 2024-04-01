@@ -4,21 +4,21 @@
 //
 
 use std::ffi::CString;
-use std::os::unix::ffi::OsStrExt;
 use std::mem;
+use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 
 use libc::{dev_t, ino_t, stat};
 
 use haiku_sys::B_REF_TYPE;
 
-use ::support::{ErrorKind, Flattenable, HaikuError, Result};
+use support::{ErrorKind, Flattenable, HaikuError, Result};
 
 #[repr(C)]
 pub(crate) struct entry_ref {
 	pub device: dev_t,
 	pub directory: ino_t,
-	pub name: CString
+	pub name: CString,
 }
 
 impl entry_ref {
@@ -26,9 +26,14 @@ impl entry_ref {
 		// An entry ref requires that the directory exists, but the leaf not
 		let directory = match value.parent() {
 			Some(path) => path,
-			None => return Err(HaikuError::new(ErrorKind::NotFound, "Cannot extract directory for this path")),
+			None => {
+				return Err(HaikuError::new(
+					ErrorKind::NotFound,
+					"Cannot extract directory for this path",
+				))
+			}
 		};
-		
+
 		let mut directory_stat: stat = unsafe { mem::zeroed() };
 		let directory_path = CString::new(directory.as_os_str().as_bytes()).unwrap();
 		unsafe {
@@ -36,16 +41,21 @@ impl entry_ref {
 				return Err(HaikuError::last_os_error());
 			}
 		}
-		
+
 		let name = match value.file_name() {
 			Some(n) => CString::new(n.as_bytes()).unwrap(),
-			None => return Err(HaikuError::new(ErrorKind::NotFound, "Cannot determine filename for this path")),
+			None => {
+				return Err(HaikuError::new(
+					ErrorKind::NotFound,
+					"Cannot determine filename for this path",
+				))
+			}
 		};
-				
-		Ok(entry_ref{
+
+		Ok(entry_ref {
 			device: directory_stat.st_dev,
 			directory: directory_stat.st_ino,
-			name: name
+			name: name,
 		})
 	}
 }
@@ -56,7 +66,9 @@ impl Flattenable<entry_ref> for entry_ref {
 	}
 
 	fn flattened_size(&self) -> usize {
-		return mem::size_of::<dev_t>() + mem::size_of::<ino_t>() + self.name.as_bytes_with_nul().len()
+		return mem::size_of::<dev_t>()
+			+ mem::size_of::<ino_t>()
+			+ self.name.as_bytes_with_nul().len();
 	}
 
 	fn is_fixed_size() -> bool {
@@ -76,7 +88,6 @@ impl Flattenable<entry_ref> for entry_ref {
 		unimplemented!()
 	}
 }
-
 
 #[test]
 fn test_entry_ref_from_path() {

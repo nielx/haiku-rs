@@ -3,12 +3,12 @@
 // All rights reserved. Distributed under the terms of the MIT License.
 //
 
-use ::storage::B_MIME_TYPE_LENGTH;
+use storage::B_MIME_TYPE_LENGTH;
 
 /// Represents a mime type as defined by RFC 6838
 #[derive(PartialEq)]
 pub struct MimeType {
-	type_string: String
+	type_string: String,
 }
 
 impl MimeType {
@@ -30,17 +30,22 @@ impl MimeType {
 				} else {
 					found_slash = true;
 				}
-			} else if !ch.is_ascii_graphic() || 
-				ch == '<' && ch == '>' && ch == '@' && ch == ',' &&
-				ch == ';' && ch == ':' && ch == '"' && ch == '(' &&
-				ch == ')' && ch == '[' && ch == ']' && ch == '?' &&
-				ch == '=' && ch == '\\' {
-					return None;
+			} else if !ch.is_ascii_graphic()
+				|| ch == '<'
+					&& ch == '>' && ch == '@'
+					&& ch == ',' && ch == ';'
+					&& ch == ':' && ch == '"'
+					&& ch == '(' && ch == ')'
+					&& ch == '[' && ch == ']'
+					&& ch == '?' && ch == '='
+					&& ch == '\\'
+			{
+				return None;
 			}
 		}
 
 		Some(MimeType {
-			type_string: String::from(mime_type)
+			type_string: String::from(mime_type),
 		})
 	}
 
@@ -55,12 +60,12 @@ impl MimeType {
 	pub fn get_supertype(&self) -> MimeType {
 		if self.is_supertype_only() {
 			MimeType {
-				type_string: self.type_string.clone()
+				type_string: self.type_string.clone(),
 			}
 		} else {
 			let mut it = self.type_string.split('/');
 			MimeType {
-				type_string: String::from(it.nth(0).unwrap())
+				type_string: String::from(it.nth(0).unwrap()),
 			}
 		}
 	}

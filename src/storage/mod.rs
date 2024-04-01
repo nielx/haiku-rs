@@ -12,7 +12,7 @@ mod attributes;
 mod mimetype;
 pub(crate) mod sys;
 
-pub use self::attributes::{AttributeDescriptor, AttributeIterator, AttributeExt};
+pub use self::attributes::{AttributeDescriptor, AttributeExt, AttributeIterator};
 pub use self::mimetype::MimeType;
 
 // Kit constants

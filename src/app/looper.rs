@@ -10,17 +10,20 @@ use std::sync::atomic::AtomicI32;
 use std::thread;
 use std::time::Duration;
 
-use ::app::{Context, Message, Messenger};
 use app::sys::{B_PREFERRED_TOKEN, B_QUIT_REQUESTED, QUIT};
-use ::kernel::ports::Port;
-use ::kernel::INFINITE_TIMEOUT;
-use ::support::{ErrorKind, Flattenable, HaikuError, Result};
+use app::{Context, Message, Messenger};
+use kernel::ports::Port;
+use kernel::INFINITE_TIMEOUT;
+use support::{ErrorKind, Flattenable, HaikuError, Result};
 
 /// A trait for the ability to process messages in the context of a looper
 ///
 /// Objects that implement this trait, can be added to the messaging queues
 /// of loopers.
-pub trait Handler<A> where A: Send + 'static {
+pub trait Handler<A>
+where
+	A: Send + 'static,
+{
 	/// Handle a message
 	///
 	/// When a Looper receives a message, this method is called for you to
@@ -29,9 +32,12 @@ pub trait Handler<A> where A: Send + 'static {
 	fn message_received(&mut self, context: &Context<A>, message: &Message);
 }
 
-pub(crate) enum HandlerType<A> where A: Send + 'static {
+pub(crate) enum HandlerType<A>
+where
+	A: Send + 'static,
+{
 	OwnedHandler(Box<dyn Handler<A> + Send>),
-	LooperState
+	LooperState,
 }
 
 /// A system that receives and processes messages in a separate thread
@@ -70,7 +76,10 @@ pub(crate) enum HandlerType<A> where A: Send + 'static {
 /// A Looper will continue to run until the it gets a request to quit. This
 /// can be done by sending the B_QUIT_REQUESTED message. Additionally, a
 /// Looper will quit when the Application is quitting.
-pub struct Looper<A> where A: Send + 'static {
+pub struct Looper<A>
+where
+	A: Send + 'static,
+{
 	pub(crate) name: String,
 	pub(crate) port: Port,
 	pub(crate) message_queue: VecDeque<Message>,
@@ -78,10 +87,13 @@ pub struct Looper<A> where A: Send + 'static {
 	pub(crate) preferred_handler: i32,
 	pub(crate) context: Context<A>,
 	pub(crate) state: Box<dyn Handler<A> + Send>,
-	pub(crate) terminating: bool
+	pub(crate) terminating: bool,
 }
 
-impl<A> Looper<A> where A: Send + 'static {	
+impl<A> Looper<A>
+where
+	A: Send + 'static,
+{
 	/// Get the name for this Looper
 	pub fn name(&self) -> &str {
 		&self.name
@@ -111,7 +123,10 @@ impl<A> Looper<A> where A: Send + 'static {
 	/// The handler may be any object that implements the Handler trait. The
 	/// object should be created on the heap (as a Box).
 	pub fn add_handler(&mut self, handler: Box<dyn Handler<A> + Send>) {
-		self.handlers.insert(NEXT_HANDLER_TOKEN.fetch_add(1, atomic::Ordering::Relaxed), HandlerType::OwnedHandler(handler));
+		self.handlers.insert(
+			NEXT_HANDLER_TOKEN.fetch_add(1, atomic::Ordering::Relaxed),
+			HandlerType::OwnedHandler(handler),
+		);
 	}
 
 	/// Add a preferred Handler to the message queue
@@ -122,7 +137,8 @@ impl<A> Looper<A> where A: Send + 'static {
 	/// set preferred Handler.
 	pub fn add_preferred_handler(&mut self, handler: Box<dyn Handler<A> + Send>) {
 		let token = NEXT_HANDLER_TOKEN.fetch_add(1, atomic::Ordering::Relaxed);
-		self.handlers.insert(token, HandlerType::OwnedHandler(handler));
+		self.handlers
+			.insert(token, HandlerType::OwnedHandler(handler));
 		self.preferred_handler = token;
 	}
 
@@ -138,7 +154,7 @@ impl<A> Looper<A> where A: Send + 'static {
 				match self.read_message_from_port(INFINITE_TIMEOUT) {
 					Ok(message) => self.message_queue.push_back(message),
 					Err(e) => {
-						println!("[{}] Error getting message: {:?}", self.name(), e); 
+						println!("[{}] Error getting message: {:?}", self.name(), e);
 						continue;
 					}
 				}
@@ -148,10 +164,10 @@ impl<A> Looper<A> where A: Send + 'static {
 			let message_count = self.port.get_count().unwrap();
 			for _ in 0..message_count {
 				// use timeout of 0 because we know there is a next message
-				match self.read_message_from_port(Duration::new(0,0)) {
+				match self.read_message_from_port(Duration::new(0, 0)) {
 					Ok(message) => self.message_queue.push_back(message),
 					Err(e) => {
-						println!("Error getting message: {:?}", e); 
+						println!("Error getting message: {:?}", e);
 						break;
 					}
 				}
@@ -160,9 +176,9 @@ impl<A> Looper<A> where A: Send + 'static {
 			// Handle messages, until we have new messages waiting in the
 			// queue, this is the inner loop
 			let mut dispatch_next_message = true;
-			while dispatch_next_message && ! self.terminating {
+			while dispatch_next_message && !self.terminating {
 				let message = self.message_queue.pop_front();
-				
+
 				if message.is_none() {
 					dispatch_next_message = false;
 				} else {
@@ -178,18 +194,20 @@ impl<A> Looper<A> where A: Send + 'static {
 					};
 
 					match message.what() {
-						B_QUIT_REQUESTED => {},
-						QUIT => { self.terminating = true; },
+						B_QUIT_REQUESTED => {}
+						QUIT => {
+							self.terminating = true;
+						}
 						_ => {
 							self.context.handler_messenger.set_token(handler_token);
 							match handler {
 								HandlerType::OwnedHandler(h) => {
 									h.message_received(&self.context, &message);
-								},
+								}
 								HandlerType::LooperState => {
 									self.state.message_received(&self.context, &message);
 								}
-							}	
+							}
 						}
 					}
 				}
@@ -203,8 +221,8 @@ impl<A> Looper<A> where A: Send + 'static {
 						if count > 0 {
 							dispatch_next_message = false;
 						}
-					},
-					Err(e) => println!("Error getting the port count: {:?}", e)
+					}
+					Err(e) => println!("Error getting the port count: {:?}", e),
 				}
 			}
 			if self.terminating {
@@ -220,7 +238,10 @@ impl<A> Looper<A> where A: Send + 'static {
 			let message = Message::unflatten(&buffer)?;
 			Ok(message)
 		} else {
-			Err(HaikuError::new(ErrorKind::InvalidData, "the data on the looper's port does not contain a Message"))
+			Err(HaikuError::new(
+				ErrorKind::InvalidData,
+				"the data on the looper's port does not contain a Message",
+			))
 		}
 	}
 }
@@ -231,7 +252,7 @@ impl<A> Looper<A> where A: Send + 'static {
 /// it's messenger and implements some convenience methods to interact.
 pub struct LooperDelegate {
 	/// The Messenger to the current Looper
-	pub messenger: Messenger
+	pub messenger: Messenger,
 }
 
 impl LooperDelegate {
@@ -256,4 +277,3 @@ impl LooperDelegate {
 // Also: the token counter is part of the looper module here, but it might
 // as well be in the application object... to do.
 pub(crate) static NEXT_HANDLER_TOKEN: AtomicI32 = AtomicI32::new(2);
-
