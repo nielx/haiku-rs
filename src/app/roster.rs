@@ -1,9 +1,16 @@
-use haiku_sys::errors::{B_ERROR, B_OK};
-use haiku_sys::{port_id, status_t, team_id, thread_id, B_FILE_NAME_LENGTH, B_MIME_TYPE_LENGTH};
-use libc::{c_char, dev_t, getuid, ino_t};
+//
+// Copyright 2019-2020, 2024, Niels Sascha Reedijk <niels.reedijk@gmail.com>
+// All rights reserved. Distributed under the terms of the MIT License.
+//
+
 use std::result;
 use std::str::{from_utf8, Utf8Error};
 use std::{mem, ptr};
+
+use libc::{
+	c_char, dev_t, getuid, ino_t, port_id, status_t, team_id, thread_id, B_ERROR,
+	B_FILE_NAME_LENGTH, B_MIME_TYPE_LENGTH, B_OK,
+};
 
 use app::message::Message;
 use app::messenger::Messenger;
@@ -12,6 +19,8 @@ use kernel::ports::Port;
 use kernel::teams::Team;
 use storage::sys::entry_ref;
 use support::{ErrorKind, Flattenable, HaikuError, Result};
+
+use haiku_constant;
 
 pub(crate) struct LaunchRoster {
 	messenger: Messenger,
@@ -413,7 +422,7 @@ impl AppInfo {
 }
 
 lazy_static! {
-	pub(crate) static ref LAUNCH_ROSTER: LaunchRoster = { LaunchRoster::init() };
+	pub(crate) static ref LAUNCH_ROSTER: LaunchRoster = LaunchRoster::init();
 }
 
 lazy_static! {

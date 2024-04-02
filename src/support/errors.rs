@@ -1,14 +1,16 @@
 //
-// Copyright 2019, Niels Sascha Reedijk <niels.reedijk@gmail.com>
+// Copyright 2019, 2024, Niels Sascha Reedijk <niels.reedijk@gmail.com>
 // All rights reserved. Distributed under the terms of the MIT License.
 //
 
 use std::ffi::CStr;
 use std::{error, fmt, result, str};
 
-use haiku_sys::errors::*;
-use haiku_sys::status_t;
-use libc::{c_char, c_int, size_t};
+use libc::{
+	c_char, c_int, size_t, status_t, B_BAD_DATA, B_BAD_INDEX, B_BAD_TYPE, B_BAD_VALUE,
+	B_DONT_DO_THAT, B_INTERRUPTED, B_MISMATCHED_VALUES, B_NAME_IN_USE, B_NAME_NOT_FOUND,
+	B_NOT_ALLOWED, B_TIMED_OUT,
+};
 
 /// This is a shortened version for a standard Rust result that returns a
 /// Haiku error.

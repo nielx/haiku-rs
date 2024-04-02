@@ -1,5 +1,5 @@
 //
-// Copyright 2019-2020, Niels Sascha Reedijk <niels.reedijk@gmail.com>
+// Copyright 2019-2020, 2024, Niels Sascha Reedijk <niels.reedijk@gmail.com>
 // All rights reserved. Distributed under the terms of the MIT License.
 //
 
@@ -12,12 +12,14 @@ use std::mem;
 use std::str;
 use std::time::Duration;
 
-use haiku_sys::errors::B_INTERRUPTED;
-use haiku_sys::{port_buffer_size_etc, port_id, read_port_etc, B_TIMEOUT};
-use libc::ssize_t;
+use libc::{
+	c_void, port_buffer_size_etc, port_id, read_port_etc, ssize_t, B_INTERRUPTED,
+	B_RELATIVE_TIMEOUT,
+};
 
 use app::message::Message;
 use app::messenger::Messenger;
+use haiku_constant;
 use kernel::ports::Port;
 use support::{ErrorKind, Flattenable, HaikuError, Result};
 
@@ -345,8 +347,9 @@ impl LinkReceiver {
 		// check if we need to adjust the size of the buffer
 		let mut buffer_size: ssize_t = B_INTERRUPTED as ssize_t;
 		while buffer_size == (B_INTERRUPTED as ssize_t) {
-			buffer_size =
-				unsafe { port_buffer_size_etc(self.port.get_port_id(), B_TIMEOUT, timeout_ms) };
+			buffer_size = unsafe {
+				port_buffer_size_etc(self.port.get_port_id(), B_RELATIVE_TIMEOUT, timeout_ms)
+			};
 		}
 		if buffer_size < 0 {
 			return Err(HaikuError::from_raw_os_error(buffer_size as i32));
@@ -371,7 +374,7 @@ impl LinkReceiver {
 		}
 
 		// read data from port
-		let pbuffer = self.buffer.as_mut_ptr();
+		let pbuffer = self.buffer.as_mut_ptr() as *mut c_void;
 		let mut len: ssize_t = B_INTERRUPTED as ssize_t;
 		let mut type_code: i32 = 0;
 		while len == (B_INTERRUPTED as ssize_t) {
@@ -381,7 +384,7 @@ impl LinkReceiver {
 					&mut type_code,
 					pbuffer,
 					buffer_size,
-					B_TIMEOUT,
+					B_RELATIVE_TIMEOUT,
 					0,
 				)
 			};

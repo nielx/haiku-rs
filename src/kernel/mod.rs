@@ -1,5 +1,5 @@
 //
-// Copyright 2018, Niels Sascha Reedijk <niels.reedijk@gmail.com>
+// Copyright 2018, 2024, Niels Sascha Reedijk <niels.reedijk@gmail.com>
 // All rights reserved. Distributed under the terms of the MIT License.
 //
 
@@ -13,11 +13,15 @@
 ///
 /// Ports are the lower level transportation mechanism for Messages.
 pub mod ports {
-	use haiku_sys::*;
-	use libc::c_char;
 	use std::ffi::{CStr, CString};
 	use std::mem;
 	use std::time::Duration;
+
+	use libc::{
+		c_char, c_void, close_port, create_port, delete_port, find_port, get_port_info,
+		port_buffer_size, port_buffer_size_etc, port_count, port_id, port_info, read_port,
+		read_port_etc, write_port, write_port_etc, B_OS_NAME_LENGTH, B_RELATIVE_TIMEOUT,
+	};
 
 	use kernel::teams::Team;
 	use support::{ErrorKind, HaikuError, Result};
@@ -138,8 +142,14 @@ pub mod ports {
 		/// bytes. If the port has already reached its maximum capacity, this
 		/// operation will block until the message can be written.
 		pub fn write(&self, type_code: i32, data: &[u8]) -> Result<()> {
-			let status =
-				unsafe { write_port(self.port, type_code, data.as_ptr(), data.len() as usize) };
+			let status = unsafe {
+				write_port(
+					self.port,
+					type_code,
+					data.as_ptr() as *const c_void,
+					data.len() as usize,
+				)
+			};
 			// TODO: replace with B_OK
 			if status == 0 {
 				Ok(())
@@ -161,9 +171,9 @@ pub mod ports {
 				write_port_etc(
 					self.port,
 					type_code,
-					data.as_ptr(),
+					data.as_ptr() as *const c_void,
 					data.len() as usize,
-					B_TIMEOUT,
+					B_RELATIVE_TIMEOUT,
 					timeout_ms,
 				)
 			};
@@ -191,8 +201,8 @@ pub mod ports {
 			if size < 0 {
 				return Err(HaikuError::from_raw_os_error(size as i32));
 			}
-			let mut dst = Vec::with_capacity(size as usize);
-			let pdst = dst.as_mut_ptr();
+			let mut dst: Vec<u8> = Vec::with_capacity(size as usize);
+			let pdst = dst.as_mut_ptr() as *mut c_void;
 			let mut type_code: i32 = 0;
 			let dst_len = unsafe { read_port(self.port, &mut type_code, pdst, size as usize) };
 
@@ -224,12 +234,12 @@ pub mod ports {
 				);
 			}
 			let timeout_ms = timeout.as_secs() as i64 * 1_000_000 + timeout.subsec_micros() as i64;
-			let size = unsafe { port_buffer_size_etc(self.port, B_TIMEOUT, timeout_ms) };
+			let size = unsafe { port_buffer_size_etc(self.port, B_RELATIVE_TIMEOUT, timeout_ms) };
 			if size < 0 {
 				return Err(HaikuError::from_raw_os_error(size as i32));
 			}
-			let mut dst = Vec::with_capacity(size as usize);
-			let pdst = dst.as_mut_ptr();
+			let mut dst: Vec<u8> = Vec::with_capacity(size as usize);
+			let pdst = dst.as_mut_ptr() as *mut c_void;
 			let mut type_code: i32 = 0;
 			let dst_len = unsafe {
 				// Technically if there is only one consumer of the port, we
@@ -243,7 +253,7 @@ pub mod ports {
 					&mut type_code,
 					pdst,
 					size as usize,
-					B_TIMEOUT,
+					B_RELATIVE_TIMEOUT,
 					timeout_ms,
 				)
 			};
@@ -344,7 +354,8 @@ pub mod ports {
 
 /// A team is a unique process that is running on Haiku
 pub mod teams {
-	use haiku_sys::*;
+	use libc::team_id;
+
 	/// This struct is a representation of a team
 	pub struct Team {
 		id: team_id,
@@ -376,8 +387,7 @@ pub(crate) mod helpers {
 	use std::ffi::CStr;
 	use std::str;
 
-	use haiku_sys::*;
-	use libc::{c_char, dev_t, ino_t, size_t};
+	use libc::{c_char, dev_t, ino_t, size_t, status_t, B_PATH_NAME_LENGTH};
 
 	use support::{HaikuError, Result};
 

@@ -1,5 +1,5 @@
 //
-// Copyright 2019, Niels Sascha Reedijk <niels.reedijk@gmail.com>
+// Copyright 2019, 2024, Niels Sascha Reedijk <niels.reedijk@gmail.com>
 // All rights reserved. Distributed under the terms of the MIT License.
 //
 
@@ -8,9 +8,7 @@ use std::mem;
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 
-use libc::{dev_t, ino_t, stat};
-
-use haiku_sys::B_REF_TYPE;
+use libc::{dev_t, ino_t, stat, B_REF_TYPE};
 
 use support::{ErrorKind, Flattenable, HaikuError, Result};
 

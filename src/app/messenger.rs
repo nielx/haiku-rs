@@ -1,12 +1,11 @@
 //
-// Copyright 2019, Niels Sascha Reedijk <niels.reedijk@gmail.com>
+// Copyright 2019, 2024 Niels Sascha Reedijk <niels.reedijk@gmail.com>
 // All rights reserved. Distributed under the terms of the MIT License.
 //
 
 use std::time::Duration;
 
-use haiku_sys::errors::B_OK;
-use haiku_sys::{port_id, B_MESSAGE_TYPE};
+use libc::{port_id, B_MESSAGE_TYPE, B_OK};
 
 use app::message::Message;
 use app::roster::{LAUNCH_ROSTER, ROSTER};
@@ -235,6 +234,7 @@ fn test_messenger_creation() {
 
 #[test]
 fn test_synchronous_message_sending() {
+	use haiku_constant;
 	use libc::getuid;
 	// B_GET_LAUNCH_DATA is defined as 'lnda' see LaunchDaemonDefs.h
 	let constant: u32 = haiku_constant!('l', 'n', 'd', 'a');

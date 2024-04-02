@@ -1,5 +1,5 @@
 //
-// Copyright 2019-2020, Niels Sascha Reedijk <niels.reedijk@gmail.com>
+// Copyright 2019-2020, 2024, Niels Sascha Reedijk <niels.reedijk@gmail.com>
 // All rights reserved. Distributed under the terms of the MIT License.
 //
 
@@ -8,7 +8,7 @@ use std::env::args;
 use std::mem;
 use std::sync::{atomic, Arc, Mutex};
 
-use haiku_sys::{find_thread, get_thread_info, port_id, team_id, thread_id, thread_info};
+use libc::{find_thread, get_thread_info, port_id, team_id, thread_id, thread_info};
 
 use app::looper::{HandlerType, Looper, LooperDelegate, NEXT_HANDLER_TOKEN};
 use app::roster::{ApplicationRegistrationStatus, ROSTER};
@@ -447,6 +447,7 @@ mod tests {
 	use super::*;
 	use app::sys::QUIT;
 	use app::Message;
+	use haiku_constant;
 
 	const ADD_TO_COUNTER: u32 = haiku_constant!('C', 'O', '+', '+');
 	const INFORM_APP_ABOUT_COUNTER: u32 = haiku_constant!('I', 'A', 'A', 'C');

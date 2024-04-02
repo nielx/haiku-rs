@@ -1,5 +1,5 @@
 //
-// Copyright 2018-2020, Niels Sascha Reedijk <niels.reedijk@gmail.com>
+// Copyright 2018-2020, 2024, Niels Sascha Reedijk <niels.reedijk@gmail.com>
 // All rights reserved. Distributed under the terms of the MIT License.
 //
 
@@ -10,8 +10,7 @@ use std::ptr;
 use std::slice::from_raw_parts;
 use std::str;
 
-use haiku_sys::errors::B_OK;
-use haiku_sys::{find_thread, get_thread_info, thread_info, B_ANY_TYPE, B_MESSAGE_TYPE};
+use libc::{find_thread, get_thread_info, thread_info, B_ANY_TYPE, B_MESSAGE_TYPE, B_OK};
 
 use app::sys::*;
 use app::Messenger;
@@ -767,6 +766,8 @@ impl fmt::Debug for Message {
 
 #[test]
 fn test_message_add_and_remove() {
+	use haiku_constant;
+
 	let constant: u32 = haiku_constant!('a', 'b', 'c', 'd');
 	let mut message = Message::new(constant);
 	message.add_data("parameter1", &(15 as i8)).unwrap();
@@ -824,6 +825,8 @@ fn test_message_add_and_remove() {
 
 #[test]
 fn test_message_replace() {
+	use haiku_constant;
+
 	let constant: u32 = haiku_constant!('q', 'w', 'e', 'r');
 	let mut message = Message::new(constant);
 	message
@@ -900,6 +903,8 @@ fn test_message_replace() {
 
 #[test]
 fn test_message_flattening() {
+	use haiku_constant;
+
 	let constant: u32 = haiku_constant!('a', 'b', 'c', 'd');
 	let basic_message = Message::new(constant);
 	let flattened_message = basic_message.flatten();
@@ -956,6 +961,8 @@ fn test_message_flattening() {
 
 #[test]
 fn test_system_message() {
+	use haiku_constant;
+
 	let system_constant: u32 = haiku_constant!('_', 'A', 'B', 'C');
 	let system_message = Message::new(system_constant);
 	assert!(system_message.is_system());

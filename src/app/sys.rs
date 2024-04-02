@@ -1,5 +1,5 @@
 //
-// Copyright 2019, Niels Sascha Reedijk <niels.reedijk@gmail.com>
+// Copyright 2019, 2024, Niels Sascha Reedijk <niels.reedijk@gmail.com>
 // All rights reserved. Distributed under the terms of the MIT License.
 //
 
@@ -10,12 +10,11 @@ use std::ffi::CStr;
 use std::mem;
 use std::path::PathBuf;
 
-use haiku_sys::errors::B_OK;
-use haiku_sys::{
-	area_id, get_next_image_info, image_info, image_type, port_id, team_id, type_code,
-};
 use libc::c_char;
+use libc::B_OK;
+use libc::{area_id, get_next_image_info, image_info, image_type, port_id, team_id, type_code};
 
+use haiku_constant;
 use support::{ErrorKind, HaikuError, Result};
 
 // os/app/AppDefs.h
@@ -87,7 +86,7 @@ pub(crate) fn get_app_path(team: team_id) -> Result<PathBuf> {
 
 	unsafe {
 		while get_next_image_info(team, &mut cookie, &mut info) == B_OK {
-			if info.image_type == image_type::B_APP_IMAGE {
+			if info.image_type == image_type::B_APP_IMAGE as i32 {
 				let c_name = CStr::from_ptr((&info.name) as *const c_char);
 				return Ok(PathBuf::from(c_name.to_str().unwrap()));
 			}

@@ -1,12 +1,17 @@
 extern crate haiku;
-extern crate haiku_sys;
+extern crate libc;
 
 use std::env::args;
 use std::fmt::Write;
 use std::path::Path;
 
+use libc::{
+	B_BOOL_TYPE, B_DOUBLE_TYPE, B_FLOAT_TYPE, B_INT16_TYPE, B_INT32_TYPE, B_INT64_TYPE,
+	B_INT8_TYPE, B_MIME_STRING_TYPE, B_STRING_TYPE, B_UINT16_TYPE, B_UINT32_TYPE, B_UINT64_TYPE,
+	B_UINT8_TYPE,
+};
+
 use haiku::storage::{AttributeDescriptor, AttributeExt};
-use haiku_sys::*;
 
 fn get_type(type_code: u32) -> String {
 	match type_code {

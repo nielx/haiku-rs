@@ -1,5 +1,5 @@
 //
-// Copyright 2018, Niels Sascha Reedijk <niels.reedijk@gmail.com>
+// Copyright 2018, 2024, Niels Sascha Reedijk <niels.reedijk@gmail.com>
 // All rights reserved. Distributed under the terms of the MIT License.
 //
 
@@ -12,9 +12,13 @@
 //! flattening API for your own data, you should implement the Flattenable
 //! trait.
 
-use haiku_sys::*;
 use std::ffi::{CStr, CString};
 use std::mem;
+
+use libc::{
+	B_BOOL_TYPE, B_DOUBLE_TYPE, B_FLOAT_TYPE, B_INT16_TYPE, B_INT32_TYPE, B_INT64_TYPE,
+	B_INT8_TYPE, B_STRING_TYPE, B_UINT16_TYPE, B_UINT32_TYPE, B_UINT64_TYPE, B_UINT8_TYPE,
+};
 
 use support::{ErrorKind, HaikuError, Result};
 
@@ -29,7 +33,7 @@ pub trait Flattenable<T> {
 	/// Return a flattened version of this object
 	fn flatten(&self) -> Vec<u8>;
 	/// Unflatten an object from a stream
-	fn unflatten(&[u8]) -> Result<T>;
+	fn unflatten(_: &[u8]) -> Result<T>;
 
 	// TODO: The Haiku API also implements AllowsTypeCode() for each supported
 	// type to for example support unflattening a mime type also as a string

@@ -1,5 +1,5 @@
 //
-// Copyright 2018, Niels Sascha Reedijk <niels.reedijk@gmail.com>
+// Copyright 2018, 2024, Niels Sascha Reedijk <niels.reedijk@gmail.com>
 // All rights reserved. Distributed under the terms of the MIT License.
 //
 
@@ -10,8 +10,11 @@ use std::mem;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
 
-use haiku_sys::*;
-use libc::{c_int, off_t, size_t, DIR};
+use libc::{
+	c_int, c_void, fs_close_attr_dir, fs_fopen_attr_dir, fs_read_attr, fs_read_attr_dir,
+	fs_remove_attr, fs_stat_attr, fs_write_attr, off_t, size_t, type_code, DIR,
+};
+
 use support::Flattenable;
 
 /// A descriptor with the metadata of an attribute.
@@ -73,7 +76,7 @@ impl Iterator for AttributeIterator {
 			Some(Ok(AttributeDescriptor {
 				name: str_buf,
 				size: attr_info_data.size,
-				raw_attribute_type: attr_info_data.attr_type,
+				raw_attribute_type: attr_info_data.type_,
 			}))
 		}
 	}
@@ -196,7 +199,7 @@ impl AttributeExt for File {
 		Ok(AttributeDescriptor {
 			name: name.to_string(),
 			size: attr_info_data.size,
-			raw_attribute_type: attr_info_data.attr_type,
+			raw_attribute_type: attr_info_data.type_,
 		})
 	}
 
@@ -229,14 +232,14 @@ impl AttributeExt for File {
 			// Calculate the size
 			descriptor.size - pos
 		};
-		let mut dst = Vec::with_capacity(descriptor.size as usize);
+		let mut dst: Vec<u8> = Vec::with_capacity(descriptor.size as usize);
 		let read_size = unsafe {
 			fs_read_attr(
 				fd,
 				attr_name.as_ptr(),
 				descriptor.raw_attribute_type,
 				pos,
-				dst.as_mut_ptr(),
+				dst.as_mut_ptr() as *mut c_void,
 				len as size_t,
 			)
 		};
@@ -266,7 +269,7 @@ impl AttributeExt for File {
 				attr_name.as_ptr(),
 				raw_type,
 				pos,
-				buffer.as_ptr(),
+				buffer.as_ptr() as *const c_void,
 				buffer.len() as size_t,
 			)
 		};
@@ -345,7 +348,7 @@ impl AttributeExt for Path {
 mod test {
 	extern crate tempfile;
 
-	use haiku_sys::B_STRING_TYPE;
+	use libc::B_STRING_TYPE;
 	use std::ffi::CStr;
 	use std::fs::File;
 	use std::path::Path;

@@ -1,5 +1,5 @@
 //
-// Copyright 2018, Niels Sascha Reedijk <niels.reedijk@gmail.com>
+// Copyright 2018, 2024, Niels Sascha Reedijk <niels.reedijk@gmail.com>
 // All rights reserved. Distributed under the terms of the MIT License.
 //
 
@@ -16,8 +16,6 @@
 //! This crate is very much work in progress.
 
 #[macro_use]
-extern crate haiku_sys;
-#[macro_use]
 extern crate lazy_static;
 extern crate libc;
 
@@ -25,3 +23,10 @@ pub mod app;
 pub mod kernel;
 pub mod storage;
 pub mod support;
+
+#[macro_export]
+macro_rules! haiku_constant {
+	($a:tt, $b:tt, $c:tt, $d:tt) => {
+		(($a as u32) << 24) + (($b as u32) << 16) + (($c as u32) << 8) + ($d as u32)
+	};
+}

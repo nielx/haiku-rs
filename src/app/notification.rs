@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use app::application::get_current_team_and_thread;
 use app::{Message, Messenger, ROSTER};
+use haiku_constant;
 use kernel::teams::Team;
 use support::Result;
 
