@@ -17,11 +17,11 @@ use libc::{
 	B_RELATIVE_TIMEOUT,
 };
 
-use app::message::Message;
-use app::messenger::Messenger;
-use haiku_constant;
-use kernel::ports::Port;
-use support::{ErrorKind, Flattenable, HaikuError, Result};
+use crate::app::message::Message;
+use crate::app::messenger::Messenger;
+use crate::haiku_constant;
+use crate::kernel::ports::Port;
+use crate::support::{ErrorKind, Flattenable, HaikuError, Result};
 
 const LINK_CODE: i32 = haiku_constant!('_', 'P', 'T', 'L') as i32;
 const INITIAL_BUFFER_SIZE: usize = 2048;

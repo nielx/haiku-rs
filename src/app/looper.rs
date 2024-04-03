@@ -10,11 +10,11 @@ use std::sync::atomic::AtomicI32;
 use std::thread;
 use std::time::Duration;
 
-use app::sys::{B_PREFERRED_TOKEN, B_QUIT_REQUESTED, QUIT};
-use app::{Context, Message, Messenger};
-use kernel::ports::Port;
-use kernel::INFINITE_TIMEOUT;
-use support::{ErrorKind, Flattenable, HaikuError, Result};
+use crate::app::sys::{B_PREFERRED_TOKEN, B_QUIT_REQUESTED, QUIT};
+use crate::app::{Context, Message, Messenger};
+use crate::kernel::ports::Port;
+use crate::kernel::INFINITE_TIMEOUT;
+use crate::support::{ErrorKind, Flattenable, HaikuError, Result};
 
 /// A trait for the ability to process messages in the context of a looper
 ///

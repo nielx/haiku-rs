@@ -3,7 +3,7 @@
 // All rights reserved. Distributed under the terms of the MIT License.
 //
 
-use storage::B_MIME_TYPE_LENGTH;
+use crate::storage::B_MIME_TYPE_LENGTH;
 
 /// Represents a mime type as defined by RFC 6838
 #[derive(PartialEq)]

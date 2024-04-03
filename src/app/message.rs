@@ -12,9 +12,9 @@ use std::str;
 
 use libc::{find_thread, get_thread_info, thread_info, B_ANY_TYPE, B_MESSAGE_TYPE, B_OK};
 
-use app::sys::*;
-use app::Messenger;
-use support::{ErrorKind, Flattenable, HaikuError, Result};
+use crate::app::sys::*;
+use crate::app::Messenger;
+use crate::support::{ErrorKind, Flattenable, HaikuError, Result};
 
 /// A rustean representation of a BMessage
 ///
@@ -767,7 +767,7 @@ impl fmt::Debug for Message {
 
 #[test]
 fn test_message_add_and_remove() {
-	use haiku_constant;
+	use crate::haiku_constant;
 
 	let constant: u32 = haiku_constant!('a', 'b', 'c', 'd');
 	let mut message = Message::new(constant);
@@ -826,7 +826,7 @@ fn test_message_add_and_remove() {
 
 #[test]
 fn test_message_replace() {
-	use haiku_constant;
+	use crate::haiku_constant;
 
 	let constant: u32 = haiku_constant!('q', 'w', 'e', 'r');
 	let mut message = Message::new(constant);
@@ -904,7 +904,7 @@ fn test_message_replace() {
 
 #[test]
 fn test_message_flattening() {
-	use haiku_constant;
+	use crate::haiku_constant;
 
 	let constant: u32 = haiku_constant!('a', 'b', 'c', 'd');
 	let basic_message = Message::new(constant);
@@ -962,7 +962,7 @@ fn test_message_flattening() {
 
 #[test]
 fn test_system_message() {
-	use haiku_constant;
+	use crate::haiku_constant;
 
 	let system_constant: u32 = haiku_constant!('_', 'A', 'B', 'C');
 	let system_message = Message::new(system_constant);

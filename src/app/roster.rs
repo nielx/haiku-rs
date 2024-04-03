@@ -12,15 +12,14 @@ use libc::{
 	B_FILE_NAME_LENGTH, B_MIME_TYPE_LENGTH, B_OK,
 };
 
-use app::message::Message;
-use app::messenger::Messenger;
-use kernel::helpers;
-use kernel::ports::Port;
-use kernel::teams::Team;
-use storage::sys::entry_ref;
-use support::{ErrorKind, Flattenable, HaikuError, Result};
-
-use haiku_constant;
+use crate::app::message::Message;
+use crate::app::messenger::Messenger;
+use crate::haiku_constant;
+use crate::kernel::helpers;
+use crate::kernel::ports::Port;
+use crate::kernel::teams::Team;
+use crate::storage::sys::entry_ref;
+use crate::support::{ErrorKind, Flattenable, HaikuError, Result};
 
 pub(crate) struct LaunchRoster {
 	messenger: Messenger,

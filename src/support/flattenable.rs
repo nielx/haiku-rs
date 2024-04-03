@@ -20,7 +20,7 @@ use libc::{
 	B_INT8_TYPE, B_STRING_TYPE, B_UINT16_TYPE, B_UINT32_TYPE, B_UINT64_TYPE, B_UINT8_TYPE,
 };
 
-use support::{ErrorKind, HaikuError, Result};
+use crate::support::{ErrorKind, HaikuError, Result};
 
 /// An interface for types that are flattenable
 pub trait Flattenable<T> {

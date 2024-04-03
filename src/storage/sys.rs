@@ -10,7 +10,7 @@ use std::path::Path;
 
 use libc::{dev_t, ino_t, stat, B_REF_TYPE};
 
-use support::{ErrorKind, Flattenable, HaikuError, Result};
+use crate::support::{ErrorKind, Flattenable, HaikuError, Result};
 
 #[repr(C)]
 pub(crate) struct entry_ref {

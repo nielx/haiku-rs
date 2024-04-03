@@ -6,11 +6,11 @@
 use std::path::Path;
 use std::time::Duration;
 
-use app::application::get_current_team_and_thread;
-use app::{Message, Messenger, ROSTER};
-use haiku_constant;
-use kernel::teams::Team;
-use support::Result;
+use crate::app::application::get_current_team_and_thread;
+use crate::app::{Message, Messenger, ROSTER};
+use crate::haiku_constant;
+use crate::kernel::teams::Team;
+use crate::support::Result;
 
 const NOTIFICATION_MESSAGE: u32 = haiku_constant!('n', 's', 's', 'm');
 const NOTIFICATION_SERVER_SIGNATURE: &str = "application/x-vnd.Haiku-notification_server";
@@ -212,7 +212,7 @@ impl Notification {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use app::{Application, ApplicationDelegate, ApplicationHooks};
+	use crate::app::{Application, ApplicationDelegate, ApplicationHooks};
 
 	struct MockApplicationState {}
 	impl ApplicationHooks for MockApplicationState {

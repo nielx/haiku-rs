@@ -14,8 +14,8 @@ use libc::c_char;
 use libc::B_OK;
 use libc::{area_id, get_next_image_info, image_info, image_type, port_id, team_id, type_code};
 
-use haiku_constant;
-use support::{ErrorKind, HaikuError, Result};
+use crate::haiku_constant;
+use crate::support::{ErrorKind, HaikuError, Result};
 
 // os/app/AppDefs.h
 pub const B_ARGV_RECEIVED: u32 = haiku_constant!('_', 'A', 'R', 'G');

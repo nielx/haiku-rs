@@ -23,8 +23,8 @@ pub mod ports {
 		read_port_etc, write_port, write_port_etc, B_OS_NAME_LENGTH, B_RELATIVE_TIMEOUT,
 	};
 
-	use kernel::teams::Team;
-	use support::{ErrorKind, HaikuError, Result};
+	use crate::kernel::teams::Team;
+	use crate::support::{ErrorKind, HaikuError, Result};
 
 	/// The port object represents a Haiku port
 	///
@@ -389,7 +389,7 @@ pub(crate) mod helpers {
 
 	use libc::{c_char, dev_t, ino_t, size_t, status_t, B_PATH_NAME_LENGTH};
 
-	use support::{HaikuError, Result};
+	use crate::support::{HaikuError, Result};
 
 	pub(crate) fn get_path_for_entry_ref(
 		device: dev_t,
@@ -438,7 +438,7 @@ pub fn debugger(message: &str) {
 
 #[test]
 fn test_basic_port() {
-	use kernel::ports::Port;
+	use crate::kernel::ports::Port;
 
 	let port = Port::create("test_basic_port", 16).unwrap();
 	let port_data = b"testdata for port\n";
@@ -454,7 +454,7 @@ fn test_basic_port() {
 
 #[test]
 fn test_port_with_timeout() {
-	use kernel::ports::Port;
+	use crate::kernel::ports::Port;
 	use std::time::Duration;
 
 	let port = Port::create("timeout_port", 1).unwrap();
@@ -463,7 +463,7 @@ fn test_port_with_timeout() {
 
 #[test]
 fn test_find_port() {
-	use kernel::ports::Port;
+	use crate::kernel::ports::Port;
 	assert!(Port::find("x-vnd.haiku-debug_server").is_some());
 	assert!(Port::find("random port").is_none());
 }

@@ -10,18 +10,18 @@ use std::sync::{atomic, Arc, Mutex};
 
 use libc::{find_thread, get_thread_info, port_id, team_id, thread_id, thread_info};
 
-use app::looper::{HandlerType, Looper, LooperDelegate, NEXT_HANDLER_TOKEN};
-use app::roster::{ApplicationRegistrationStatus, ROSTER};
-use app::serverlink::{server_protocol, ServerLink};
-use app::sys::{
+use crate::app::looper::{HandlerType, Looper, LooperDelegate, NEXT_HANDLER_TOKEN};
+use crate::app::roster::{ApplicationRegistrationStatus, ROSTER};
+use crate::app::serverlink::{server_protocol, ServerLink};
+use crate::app::sys::{
 	get_app_path, B_ARGV_RECEIVED, B_PREFERRED_TOKEN, B_QUIT_REQUESTED, B_READY_TO_RUN, QUIT,
 };
-use app::{Handler, Message, Messenger};
-use kernel::ports::Port;
-use kernel::INFINITE_TIMEOUT;
-use storage::sys::entry_ref;
-use storage::MimeType;
-use support::Result;
+use crate::app::{Handler, Message, Messenger};
+use crate::kernel::ports::Port;
+use crate::kernel::INFINITE_TIMEOUT;
+use crate::storage::sys::entry_ref;
+use crate::storage::MimeType;
+use crate::support::Result;
 
 const LOOPER_PORT_DEFAULT_CAPACITY: i32 = 200;
 
@@ -446,9 +446,9 @@ pub(crate) fn get_current_team_and_thread() -> (team_id, thread_id) {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use app::sys::QUIT;
-	use app::Message;
-	use haiku_constant;
+	use crate::app::sys::QUIT;
+	use crate::app::Message;
+	use crate::haiku_constant;
 
 	const ADD_TO_COUNTER: u32 = haiku_constant!('C', 'O', '+', '+');
 	const INFORM_APP_ABOUT_COUNTER: u32 = haiku_constant!('I', 'A', 'A', 'C');

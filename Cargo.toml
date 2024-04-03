@@ -10,6 +10,7 @@ homepage = "https://haiku-os.org/"
 categories = ["api-bindings", "os"]
 license = "MIT"
 readme = "README.md"
+edition="2021"
 
 [dependencies]
 lazy_static = "1.4"

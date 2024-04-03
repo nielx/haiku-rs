@@ -15,7 +15,7 @@ use libc::{
 	fs_remove_attr, fs_stat_attr, fs_write_attr, off_t, size_t, type_code, DIR,
 };
 
-use support::Flattenable;
+use crate::support::Flattenable;
 
 /// A descriptor with the metadata of an attribute.
 pub struct AttributeDescriptor {
@@ -353,7 +353,7 @@ mod test {
 	use std::fs::File;
 	use std::path::Path;
 
-	use storage::attributes::AttributeExt;
+	use crate::storage::attributes::AttributeExt;
 
 	#[test]
 	fn test_attribute_ext() {

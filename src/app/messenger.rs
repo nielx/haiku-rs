@@ -7,12 +7,12 @@ use std::time::Duration;
 
 use libc::{port_id, B_MESSAGE_TYPE, B_OK};
 
-use app::message::Message;
-use app::roster::{LAUNCH_ROSTER, ROSTER};
-use app::sys::*;
-use kernel::ports::Port;
-use kernel::teams::Team;
-use support::{ErrorKind, Flattenable, HaikuError, Result};
+use crate::app::message::Message;
+use crate::app::roster::{LAUNCH_ROSTER, ROSTER};
+use crate::app::sys::*;
+use crate::kernel::ports::Port;
+use crate::kernel::teams::Team;
+use crate::support::{ErrorKind, Flattenable, HaikuError, Result};
 
 /// A messenger is a helper that sends Messages through ports
 ///
@@ -234,7 +234,7 @@ fn test_messenger_creation() {
 
 #[test]
 fn test_synchronous_message_sending() {
-	use haiku_constant;
+	use crate::haiku_constant;
 	use libc::getuid;
 	// B_GET_LAUNCH_DATA is defined as 'lnda' see LaunchDaemonDefs.h
 	let constant: u32 = haiku_constant!('l', 'n', 'd', 'a');
