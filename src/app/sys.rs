@@ -81,17 +81,28 @@ pub struct message_header {
 
 // Helper functions
 pub(crate) fn get_app_path(team: team_id) -> Result<PathBuf> {
-	let mut info: image_info = unsafe { mem::zeroed() };
+	let mut info = mem::MaybeUninit::<image_info>::uninit();
 	let mut cookie: i32 = 0;
 
-	unsafe {
-		while get_next_image_info(team, &mut cookie, &mut info) == B_OK {
-			if info.image_type == image_type::B_APP_IMAGE as i32 {
-				let c_name = CStr::from_ptr((&info.name) as *const c_char);
-				return Ok(PathBuf::from(c_name.to_str().unwrap()));
-			}
-		}
+	// Initial run to initialize memory
+	let mut result = unsafe { get_next_image_info(team, &mut cookie, info.as_mut_ptr()) };
+	if result != B_OK {
+		return Err(HaikuError::new(
+			ErrorKind::NotFound,
+			"Cannot find the app image",
+		));
 	}
+	let mut info = unsafe { info.assume_init() };
+
+	// Iterate over the rest of the images until the app image is found
+	while result == B_OK {
+		if info.image_type == image_type::B_APP_IMAGE as i32 {
+			let c_name = unsafe { CStr::from_ptr((&info.name) as *const c_char) };
+			return Ok(PathBuf::from(c_name.to_str().unwrap()));
+		}
+		result = unsafe { get_next_image_info(team, &mut cookie, &mut info) };
+	}
+
 	Err(HaikuError::new(
 		ErrorKind::NotFound,
 		"Cannot find the app image",

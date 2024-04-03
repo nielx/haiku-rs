@@ -5,7 +5,7 @@
 
 use std::char;
 use std::fmt;
-use std::mem::{size_of, transmute_copy, zeroed};
+use std::mem::{size_of, transmute_copy, MaybeUninit};
 use std::ptr;
 use std::slice::from_raw_parts;
 use std::str;
@@ -473,14 +473,15 @@ impl Message {
 		// Compare the team id to the message team id.
 		// The following code to get the team id could be extracted and made reusable
 		let team = unsafe {
-			let mut info: thread_info = zeroed();
+			let mut info = MaybeUninit::<thread_info>::uninit();
 			let id = find_thread(ptr::null());
 			println!("id: {}", id);
-			let retval = get_thread_info(id, &mut info);
+			let retval = get_thread_info(id, info.as_mut_ptr());
 			println!("retval: {}", retval);
-			if get_thread_info(id, &mut info) != B_OK {
+			if retval != B_OK {
 				panic!("Cannot get the thread_info for the current thread")
 			}
+			let info = info.assume_init();
 			info.team
 		};
 		println!("team: {}, reply_team: {}", team, self.header.reply_team);

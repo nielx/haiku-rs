@@ -431,9 +431,10 @@ fn parse_argv(message: &Message) -> Vec<String> {
 /// Get the current team id and thread id
 // TODO: some caching
 pub(crate) fn get_current_team_and_thread() -> (team_id, thread_id) {
-	let mut info: thread_info = unsafe { mem::zeroed() };
+	let mut info = mem::MaybeUninit::<thread_info>::uninit();
 	let (team, thread) = unsafe {
-		if get_thread_info(find_thread(0 as *const i8), &mut info) == 0 {
+		if get_thread_info(find_thread(0 as *const i8), info.as_mut_ptr()) == 0 {
+			let info = info.assume_init();
 			(info.team, info.thread)
 		} else {
 			(-1, -1)
